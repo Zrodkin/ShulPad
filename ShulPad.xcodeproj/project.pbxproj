@@ -7,11 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8D3238A62E061DB200ED86CC /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8D3238A52E061DA700ED86CC /* CoreLocation.framework */; };
+		8D3238A72E061DBA00ED86CC /* CoreLocationUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8D3238A32E061DA700ED86CC /* CoreLocationUI.framework */; };
+		8D3238A82E061DC100ED86CC /* libswiftCoreLocation.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 8D3238A42E061DA700ED86CC /* libswiftCoreLocation.tbd */; };
 		8DA885FE2E05DA05003D179D /* MockReaderUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8DA885FD2E05DA05003D179D /* MockReaderUI */; };
 		8DA886002E05DA05003D179D /* SquareMobilePaymentsSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 8DA885FF2E05DA05003D179D /* SquareMobilePaymentsSDK */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8D3238A32E061DA700ED86CC /* CoreLocationUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocationUI.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.4.sdk/System/Library/Frameworks/CoreLocationUI.framework; sourceTree = DEVELOPER_DIR; };
+		8D3238A42E061DA700ED86CC /* libswiftCoreLocation.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libswiftCoreLocation.tbd; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.4.sdk/usr/lib/swift/libswiftCoreLocation.tbd; sourceTree = DEVELOPER_DIR; };
+		8D3238A52E061DA700ED86CC /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.4.sdk/System/Library/Frameworks/CoreLocation.framework; sourceTree = DEVELOPER_DIR; };
 		8DC1A57F2E05D77000FBAD0D /* ShulPad.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ShulPad.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -41,6 +47,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8D3238A82E061DC100ED86CC /* libswiftCoreLocation.tbd in Frameworks */,
+				8D3238A72E061DBA00ED86CC /* CoreLocationUI.framework in Frameworks */,
+				8D3238A62E061DB200ED86CC /* CoreLocation.framework in Frameworks */,
 				8DA885FE2E05DA05003D179D /* MockReaderUI in Frameworks */,
 				8DA886002E05DA05003D179D /* SquareMobilePaymentsSDK in Frameworks */,
 			);
@@ -49,10 +58,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8D3238A22E061DA700ED86CC /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8D3238A52E061DA700ED86CC /* CoreLocation.framework */,
+				8D3238A32E061DA700ED86CC /* CoreLocationUI.framework */,
+				8D3238A42E061DA700ED86CC /* libswiftCoreLocation.tbd */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		8DC1A5762E05D77000FBAD0D = {
 			isa = PBXGroup;
 			children = (
 				8DC1A5812E05D77000FBAD0D /* ShulPad */,
+				8D3238A22E061DA700ED86CC /* Frameworks */,
 				8DC1A5802E05D77000FBAD0D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -300,6 +320,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShulPad/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -341,6 +362,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShulPad/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

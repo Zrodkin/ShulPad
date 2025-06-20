@@ -5,6 +5,7 @@ import AuthenticationServices // Make sure this is imported for ASWebAuthenticat
 
 struct OnboardingView: View {
     @State private var isLoading = false
+    @State private var hasLocationPermission = false
     @State private var safariDismissed = false
     @State private var isPolling = false
     @State private var pollingTimer: Timer? = nil
@@ -135,7 +136,7 @@ struct OnboardingView: View {
                         .foregroundColor(.white)
                         .cornerRadius(15)
                     }
-                    .disabled(isLoading)
+                    .disabled(!hasLocationPermission || isLoading)
                     .padding(.horizontal)
                 }
                 
@@ -182,7 +183,7 @@ struct OnboardingView: View {
             // Request location permission immediately when onboarding loads
             locationManager.requestLocationPermission { granted in
                 print("📍 Location permission result: \(granted)")
-                // Continue regardless of location permission result
+                self.hasLocationPermission = granted
             }
             
             // Check auth state
@@ -215,7 +216,6 @@ struct OnboardingView: View {
                 notificationObserver = nil
             }
         }
-        // CRITICAL FIX: Improved monitoring of authentication state changes
         .onReceive(squareAuthService.$isAuthenticated) { isAuthenticated in
             print("🔄 OnboardingView: Auth state changed to \(isAuthenticated)")
             
@@ -224,7 +224,6 @@ struct OnboardingView: View {
                 completeOnboarding()
             }
         }
-        // ADDITIONAL FIX: Also monitor for explicit authentication success
         .onReceive(NotificationCenter.default.publisher(for: .squareAuthenticationSuccessful)) { _ in
             print("✅ Received explicit authentication success notification")
             completeOnboarding()
@@ -243,31 +242,25 @@ struct OnboardingView: View {
         }
     }
     
-    // NEW: Centralized onboarding completion method
     private func completeOnboarding() {
         print("🏁 Completing onboarding...")
         
-        // Stop any ongoing timers
         pollingTimer?.invalidate()
         pollingTimer = nil
         
-        // Reset loading states
         isLoading = false
         safariDismissed = false
-        authSessionManager.isAuthenticating = false // Ensure AuthenticationSessionManager state is also reset
+        authSessionManager.isAuthenticating = false
         
-        // Complete onboarding
         hasCompletedOnboarding = true
         
         UserDefaults.standard.set(true, forKey: "isInAdminMode")
         
         print("✅ Onboarding completed - hasCompletedOnboarding set to true")
         
-        // POST NOTIFICATION: Ensure all observers know onboarding is complete
         NotificationCenter.default.post(name: NSNotification.Name("OnboardingCompleted"), object: nil)
     }
     
-    // Request location permission first, then start auth
     private func requestLocationThenAuth() {
         print("🔍 Requesting location permission before auth...")
         
@@ -277,7 +270,7 @@ struct OnboardingView: View {
             DispatchQueue.main.async {
                 if granted {
                     print("✅ Location permission granted, starting auth")
-                    self.startAuthFlowUsingAuthenticationSessionManager() // Call the new function
+                    self.startAuthFlowUsingAuthenticationSessionManager()
                 } else {
                     print("❌ Location permission denied")
                     self.isLoading = false
@@ -286,26 +279,22 @@ struct OnboardingView: View {
         }
     }
     
-    // Handle OAuth callback notification
-    private func handleOAuthCallback(_ notification: Notification) { // Removed the extra 'func' here
+    private func handleOAuthCallback(_ notification: Notification) {
         print("🔄 Handling OAuth callback in OnboardingView")
         
-        // Extract success/error from notification userInfo
         if let userInfo = notification.userInfo,
            let success = userInfo["success"] as? Bool {
             print("OAuth callback received with success: \(success)")
             
             if success {
-                // Stop polling and reset state
                 pollingTimer?.invalidate()
                 pollingTimer = nil
                 isLoading = false
                 safariDismissed = false
-                authSessionManager.isAuthenticating = false // Ensure manager state is reset
+                authSessionManager.isAuthenticating = false
                 
                 print("🔄 OAuth callback successful - checking auth service state")
                 
-                // FIX: Give the auth service a moment to update, then complete
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     if self.squareAuthService.isAuthenticated {
                         print("✅ Auth service confirmed authenticated - completing onboarding")
@@ -316,20 +305,17 @@ struct OnboardingView: View {
                     }
                 }
             } else {
-                // Handle error
                 if let error = userInfo["error"] as? String {
                     print("OAuth error: \(error)")
                 }
                 
-                // Reset state
                 isLoading = false
                 safariDismissed = false
-                authSessionManager.isAuthenticating = false // Ensure manager state is reset
+                authSessionManager.isAuthenticating = false
             }
         }
     }
     
-    // Function to start more intensive polling after ASWebAuthenticationSession is dismissed
     private func startIntensivePolling() {
         pollingTimer?.invalidate()
         
@@ -341,7 +327,6 @@ struct OnboardingView: View {
                     pollingTimer = nil
                     safariDismissed = false
                     
-                    // FIX: Complete onboarding when polling succeeds
                     DispatchQueue.main.async {
                         self.completeOnboarding()
                     }
@@ -349,10 +334,8 @@ struct OnboardingView: View {
             }
         }
         
-        // Also immediately check once
         squareAuthService.checkPendingAuthorization { _ in }
         
-        // Set a timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
             guard !self.squareAuthService.isAuthenticated else { return }
             
@@ -360,26 +343,22 @@ struct OnboardingView: View {
             self.pollingTimer = nil
             self.isLoading = false
             self.safariDismissed = false
-            self.authSessionManager.isAuthenticating = false // Ensure manager state is reset
+            self.authSessionManager.isAuthenticating = false
             print("Polling timed out after 30 seconds")
         }
     }
     
-    // This function now uses AuthenticationSessionManager and calls SquareConfig's async method
     private func startAuthFlowUsingAuthenticationSessionManager() {
         print("Starting Square OAuth flow with ASWebAuthenticationSession from OnboardingView...")
         
-        // Call SquareConfig to generate the URL asynchronously
         SquareConfig.generateOAuthURL { url, error, state in
             DispatchQueue.main.async {
-                // No 'guard let self = self else { return }' needed here for structs
-                
                 if let error = error {
                     print("Failed to generate authorization URL: \(error.localizedDescription)")
                     self.isLoading = false
-                    self.squareAuthService.authError = error.localizedDescription // Update auth service error
-                    self.squareAuthService.isAuthenticating = false // Reset auth service state
-                    self.authSessionManager.authError = error.localizedDescription // Also update authSessionManager error
+                    self.squareAuthService.authError = error.localizedDescription
+                    self.squareAuthService.isAuthenticating = false
+                    self.authSessionManager.authError = error.localizedDescription
                     self.authSessionManager.isAuthenticating = false
                     return
                 }
@@ -401,13 +380,10 @@ struct OnboardingView: View {
                     print("WARNING: No state returned from generateOAuthURL")
                 }
                 
-                // Start authentication session using the manager
                 self.authSessionManager.startAuthentication(
                     with: url,
-                    callbackURLScheme: "shulpad" // Your custom URL scheme
+                    callbackURLScheme: "shulpad"
                 ) { callbackURL, authSessionError in
-                    // This completion handler is called when ASWebAuthenticationSession finishes
-                    // No 'guard let self = self else { return }' needed here for structs
                     DispatchQueue.main.async {
                         if let authSessionError = authSessionError {
                             print("ASWebAuthenticationSession error: \(authSessionError.localizedDescription)")
@@ -415,7 +391,6 @@ struct OnboardingView: View {
                                 print("User cancelled authentication.")
                                 self.isLoading = false
                                 self.squareAuthService.isAuthenticating = false
-                                // authSessionManager.isAuthenticating is already set to false by authSessionManager itself
                             } else {
                                 self.isLoading = false
                                 self.squareAuthService.authError = authSessionError.localizedDescription
@@ -424,10 +399,8 @@ struct OnboardingView: View {
                             }
                         } else if let callbackURL = callbackURL {
                             print("ASWebAuthenticationSession completed with callback URL: \(callbackURL)")
-                            // Handle the callback, which should trigger polling if needed
                             self.squareAuthService.handleOAuthCallback(url: callbackURL)
-                            // The polling will handle `isLoading` and `isAuthenticated` updates
-                            self.startIntensivePolling() // Start intensive polling after successful callback
+                            self.startIntensivePolling()
                         } else {
                             print("ASWebAuthenticationSession completed but no callback URL or error.")
                             self.isLoading = false
@@ -436,9 +409,8 @@ struct OnboardingView: View {
                         }
                     }
                 }
-                // Set the loading state AFTER successfully starting ASWebAuthenticationSession
                 self.isLoading = true
-                self.squareAuthService.isAuthenticating = true // Reflect that auth process has started
+                self.squareAuthService.isAuthenticating = true
             }
         }
     }

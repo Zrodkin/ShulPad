@@ -1,5 +1,4 @@
 import SwiftUI
-
 struct ContentView: View {
     // Add a state variable to force refreshes
     @State private var refreshTrigger = false
@@ -217,7 +216,6 @@ struct ContentView: View {
         print("App state reset for fresh onboarding")
     }
 }
-
 // MARK: - Extension for SquareAuthService (add this method if it doesn't exist)
 extension SquareAuthService {
     func hasLocalTokens() -> Bool {
@@ -225,7 +223,6 @@ extension SquareAuthService {
         return accessToken != nil && tokenExpirationDate != nil
     }
 }
-
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         let authService = SquareAuthService()
@@ -240,3 +237,4 @@ struct ContentView_Previews: PreviewProvider {
             .environmentObject(SquarePaymentService(authService: authService, catalogService: catalogService))
     }
 }
+

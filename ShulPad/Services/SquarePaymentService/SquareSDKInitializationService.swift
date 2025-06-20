@@ -8,7 +8,7 @@ class SquareSDKInitializationService: NSObject, AuthorizationStateObserver {
     private weak var authService: SquareAuthService?
     private weak var paymentService: SquarePaymentService?
     private var isInitialized = false
-    
+    private var isAuthorizationInProgress = false
     // MARK: - Public Methods
     
     /// Configure the service with necessary dependencies
@@ -113,6 +113,11 @@ class SquareSDKInitializationService: NSObject, AuthorizationStateObserver {
             return
         }
         
+        guard !isAuthorizationInProgress else {
+                  print("⚠️ SDK authorization is already in progress. Skipping duplicate call.")
+                  return
+              }
+        
         print("🔍 ENHANCED DEBUG: Starting SDK initialization with location verification")
         
         // Get credentials from auth service
@@ -175,24 +180,32 @@ class SquareSDKInitializationService: NSObject, AuthorizationStateObserver {
         }
         
         // Perform the authorization
-        performAuthorization(accessToken: accessToken, locationID: locationID, onSuccess: onSuccess)
-    }
+                isAuthorizationInProgress = true // 👈 SET FLAG
+                performAuthorization(accessToken: accessToken, locationID: locationID, onSuccess: onSuccess)
+            }
 
     // Enhanced helper method for authorization
     private func performAuthorization(accessToken: String, locationID: String, onSuccess: @escaping () -> Void) {
-        print("🚀 Authorizing Square SDK with location ID: \(locationID)")
-        
-        // Show what we're about to do
-        updateConnectionStatus("Authorizing SDK with location...")
-        
-        // Use correct method signature from Square documentation
-        MobilePaymentsSDK.shared.authorizationManager.authorize(
-            withAccessToken: accessToken,
-            locationID: locationID
-        ) { [weak self] error in
-            guard let self = self else { return }
+            print("🚀 Authorizing Square SDK with location ID: \(locationID)")
             
-            DispatchQueue.main.async {
+            // Show what we're about to do
+            updateConnectionStatus("Authorizing SDK with location...")
+            
+            // Use correct method signature from Square documentation
+            MobilePaymentsSDK.shared.authorizationManager.authorize(
+                withAccessToken: accessToken,
+                locationID: locationID
+            ) { [weak self] error in
+                defer {
+                    DispatchQueue.main.async {
+                        self?.isAuthorizationInProgress = false
+                    }
+                }
+            
+
+                guard let self = self else { return }
+                
+                DispatchQueue.main.async {
                 if let authError = error {
                     let errorMessage = "SDK Authorization failed: \(authError.localizedDescription)"
                     print("❌ \(errorMessage)")
