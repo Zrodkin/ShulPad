@@ -4,9 +4,8 @@ struct AdminDashboardView: View {
     @State private var selectedTab: String? = nil
     @State private var showLogoutAlert = false
     @State private var isLoggingOut = false
-    
-    // 🔧 FIX 1: Add dedicated state to prevent double-taps
     @State private var isProcessingLogout = false
+    
     
     @AppStorage("isInAdminMode") private var isInAdminMode: Bool = true
     @EnvironmentObject private var organizationStore: OrganizationStore
@@ -15,6 +14,7 @@ struct AdminDashboardView: View {
     @EnvironmentObject private var squareAuthService: SquareAuthService
     @EnvironmentObject private var squarePaymentService: SquarePaymentService
     @EnvironmentObject private var squareReaderService: SquareReaderService
+    @EnvironmentObject private var subscriptionStore: SubscriptionStore
     
     var body: some View {
         NavigationSplitView {
@@ -96,6 +96,13 @@ struct AdminDashboardView: View {
                                 icon: "creditcard.fill",
                                 title: "Card Readers",
                                 subtitle: "Hardware management"
+                            )
+                        }
+                        NavigationLink(value: "subscription") {
+                            AdminNavItem(
+                                icon: "creditcard.and.123",
+                                title: "Subscription",
+                                subtitle: "Manage billing & plan"
                             )
                         }
                     }
@@ -251,6 +258,9 @@ struct AdminDashboardView: View {
                         ReaderManagementView()
                             .environmentObject(squareAuthService)
                             .environmentObject(squareReaderService)
+                    case "subscription":
+                        SubscriptionManagementView()
+                            .environmentObject(squareAuthService)
                     default:
                         EmptyDetailView()
                     }
@@ -307,6 +317,12 @@ struct AdminDashboardView: View {
             print("🚀 Launching kiosk from quick setup")
             kioskStore.updateDonationViewModel(donationViewModel)
             isInAdminMode = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .subscriptionActivated)) { _ in
+            subscriptionStore.refreshSubscriptionStatus()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshSubscriptionStatus)) { _ in
+            subscriptionStore.refreshSubscriptionStatus()
         }
     }
     

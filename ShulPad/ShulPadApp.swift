@@ -6,6 +6,7 @@ struct DonationPadApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     @StateObject private var authService = SquareAuthService()
+    @StateObject private var subscriptionStore = SubscriptionStore()
     @StateObject private var donationViewModel = DonationViewModel()
     @StateObject private var organizationStore = OrganizationStore()
     @StateObject private var kioskStore = KioskStore()
@@ -28,6 +29,7 @@ struct DonationPadApp: App {
                 .environmentObject(organizationStore)
                 .environmentObject(kioskStore)
                 .environmentObject(authService)
+                .environmentObject(subscriptionStore)
                 .environmentObject(catalogService ?? SquareCatalogService(authService: authService))
                 .environmentObject(paymentService ?? SquarePaymentService(authService: authService, catalogService: catalogService ?? SquareCatalogService(authService: authService)))
                 .environmentObject(readerService ?? SquareReaderService(authService: authService))
@@ -39,6 +41,7 @@ struct DonationPadApp: App {
                     }
                 }
                 .onOpenURL { url in
+                    // Handle deep links here if needed
                 }
         }
     }
@@ -46,6 +49,10 @@ struct DonationPadApp: App {
     private func setupBasicConfiguration() {
         SquareConfig.setDefaultConfiguration()
         registerDefaultSettings()
+        
+        // ✅ CRITICAL: Inject auth service into subscription store
+        subscriptionStore.setAuthService(authService)
+        print("✅ Auth service injected into subscription store")
     }
     
     private func registerDefaultSettings() {
@@ -99,3 +106,4 @@ struct DonationPadApp: App {
         }
     }
 }
+

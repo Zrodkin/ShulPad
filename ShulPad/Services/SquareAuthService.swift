@@ -36,9 +36,9 @@ class SquareAuthService: ObservableObject {
     private let organizationIdKey = "organizationId"
     
     // MARK: - Device ID Support
-       private let deviceIdKey = "squareDeviceId"
-       
-       /// Unique device identifier for multi-device support
+    private let deviceIdKey = "squareDeviceId"
+    
+    /// Unique device identifier for multi-device support
     private var deviceId: String {
         // Check if we already have a stored device ID
         if let stored = UserDefaults.standard.string(forKey: deviceIdKey) {
@@ -107,20 +107,22 @@ class SquareAuthService: ObservableObject {
             UserDefaults.standard.set(baseOrgId, forKey: organizationIdKey)
         }
     }
-       
-       /// Get the base organization ID without device suffix
-       var baseOrganizationId: String {
-           return UserDefaults.standard.string(forKey: organizationIdKey) ?? SquareConfig.organizationId
-       }
-
+    
+    /// Get the base organization ID without device suffix
+    var baseOrganizationId: String {
+        return UserDefaults.standard.string(forKey: organizationIdKey) ?? SquareConfig.organizationId
+    }
+    
+    
+    
     // NEW: Add reference to payment service for health checks
     private weak var paymentService: SquarePaymentService?
-
+    
     /// Set payment service reference for health checks
     func setPaymentService(_ service: SquarePaymentService) {
         self.paymentService = service
     }
-
+    
     /// Check if we're FULLY authenticated (tokens + SDK + location + ready for payments)
     func isFullyAuthenticated() -> Bool {
         print("🔍 Checking full authentication status...")
@@ -149,7 +151,7 @@ class SquareAuthService: ObservableObject {
         print("✅ Fully authenticated and ready")
         return true
     }
-
+    
     /// Force complete logout and return to onboarding
     func forceCompleteLogout() {
         print("🚨 Forcing complete logout due to incomplete authentication")
@@ -200,8 +202,8 @@ class SquareAuthService: ObservableObject {
         print("Found valid local token, checking with server...")
         performAuthCheck()
     }
-
-
+    
+    
     // Complete performAuthCheck method with deployment detection
     private func performAuthCheck(retryCount: Int = 0) {
         guard let url = URL(string: "\(ResilientBackendConfig.shared.getCurrentBackendURL())\(SquareConfig.statusEndpoint)?organization_id=\(organizationId)&device_id=\(deviceId)") else {
@@ -408,7 +410,7 @@ class SquareAuthService: ObservableObject {
             self.isAuthenticated = false
         }
     }
-
+    
     // NEW: Check if backend is healthy before giving up
     private func isBackendHealthy(completion: @escaping (Bool) -> Void) {
         guard let url = URL(string: "\(ResilientBackendConfig.shared.getCurrentBackendURL())/api/health") else {
@@ -430,7 +432,7 @@ class SquareAuthService: ObservableObject {
             }
         }.resume()
     }
-
+    
     // NEW: Attempt token refresh with fallback
     private func attemptTokenRefresh() {
         guard let refreshToken = refreshToken else {
@@ -455,7 +457,7 @@ class SquareAuthService: ObservableObject {
             }
         }
     }
-
+    
     // UPDATED: Refresh token with completion handler
     func refreshAccessToken(refreshToken: String, completion: @escaping (Bool) -> Void) {
         guard let url = URL(string: "\(SquareConfig.backendBaseURL)\(SquareConfig.refreshEndpoint)") else {
@@ -795,7 +797,7 @@ class SquareAuthService: ObservableObject {
     }
     
     // Add this method to SquareAuthService.swift
-
+    
     func startPollingForAuthStatus(merchantId: String? = nil, locationId: String? = nil) {
         print("Starting to poll for authentication status with state: \(pendingAuthState ?? "nil")")
         
@@ -975,7 +977,7 @@ class SquareAuthService: ObservableObject {
         
         RunLoop.current.add(timer, forMode: .common)
     }
-
+    
     // ✅ ALSO ADD: Switch to organization-based polling after timeout
     private func switchToOrganizationPolling() {
         print("🔄 Switching to organization-based polling...")
@@ -1122,6 +1124,7 @@ class SquareAuthService: ObservableObject {
         tokenExpirationDate = nil
         pendingAuthState = nil
         
+        
         UserDefaults.standard.removeObject(forKey: organizationIdKey)
         
         // Reset state
@@ -1154,7 +1157,7 @@ class SquareAuthService: ObservableObject {
         print("🔄 Authorization state reset")
     }
     
-
+    
     
     
     // MARK: - Helper Methods
@@ -1251,24 +1254,24 @@ class SquareAuthService: ObservableObject {
         }.resume()
     }
     // MARK: - Device Management
-        
-        /// Get the current device ID
-        func getCurrentDeviceId() -> String {
-            return deviceId
-        }
-        
-        /// Reset device ID (for testing or device transfer)
-        func resetDeviceId() {
-            UserDefaults.standard.removeObject(forKey: deviceIdKey)
-            print("🔄 Device ID reset - will generate new one on next access")
-        }
-        
-        /// Check if another device is using the same base organization
-        func checkForOtherDevices(completion: @escaping ([String]) -> Void) {
-            // This would query your backend for other device IDs using the same base org
-            // Implementation depends on your backend API
-            completion([]) // Placeholder
-        }
+    
+    /// Get the current device ID
+    func getCurrentDeviceId() -> String {
+        return deviceId
+    }
+    
+    /// Reset device ID (for testing or device transfer)
+    func resetDeviceId() {
+        UserDefaults.standard.removeObject(forKey: deviceIdKey)
+        print("🔄 Device ID reset - will generate new one on next access")
+    }
+    
+    /// Check if another device is using the same base organization
+    func checkForOtherDevices(completion: @escaping ([String]) -> Void) {
+        // This would query your backend for other device IDs using the same base org
+        // Implementation depends on your backend API
+        completion([]) // Placeholder
+    }
     func enableMultiDeviceMode() {
         UserDefaults.standard.set(true, forKey: "enableMultiDeviceMode")
         print("🔄 Multi-device mode enabled - will use device-specific organization IDs")
@@ -1276,7 +1279,7 @@ class SquareAuthService: ObservableObject {
         // Clear authentication to force re-auth with new ID format
         clearLocalAuthData()
     }
-
+    
     // FIX 4: Add conflict detection (call this when you detect login conflicts)
     func handleDeviceConflict() {
         print("⚠️ Device conflict detected - enabling device-specific IDs")
@@ -1292,8 +1295,50 @@ class SquareAuthService: ObservableObject {
         print("  - Multi-Device Mode: \(UserDefaults.standard.bool(forKey: "enableMultiDeviceMode"))")
         print("  - Has Conflicts: \(UserDefaults.standard.bool(forKey: "hasDeviceConflicts"))")
     }
+    
+    
+    
+    // MARK: - Subscription Helper Methods
+    
+    /// Check if setup is complete for subscriptions
+    func isReadyForSubscription() -> Bool {
+        return !organizationId.isEmpty && isAuthenticated
+    }
+    
+    /// Get the subscription checkout URL (email will be collected by web form)
+    func getSubscriptionCheckoutURL() -> URL? {
+        guard isReadyForSubscription() else { return nil }
+        
+        var components = URLComponents(string: "\(SquareConfig.backendBaseURL)/subscription/checkout")
+        components?.queryItems = [
+            URLQueryItem(name: "org_id", value: organizationId)
+        ]
+        
+        return components?.url
+    }
+    
+    /// Get the subscription management URL
+    func getSubscriptionManagementURL() -> URL? {
+        guard isReadyForSubscription() else { return nil }
+        
+        var components = URLComponents(string: "\(SquareConfig.backendBaseURL)/subscription/manage")
+        components?.queryItems = [
+            URLQueryItem(name: "org_id", value: organizationId)
+        ]
+        
+        return components?.url
+    }
+    
+    /// Get organization info for subscription (without email - server will handle)
+    func getOrganizationInfo() -> [String: String] {
+        return [
+            "organization_id": organizationId,
+            "base_organization_id": baseOrganizationId,
+            "merchant_id": merchantId ?? "",
+            "location_id": locationId ?? ""
+        ]
+    }
 }
-
 // MARK: - Notification Names Extension
 
 extension SquareAuthService {
@@ -1329,6 +1374,7 @@ extension SquareAuthService {
     }
 }
 
+// MARK: - Notification Names Extension
 extension Notification.Name {
     static let squareAuthenticationStatusChanged = Notification.Name("SquareAuthenticationStatusChanged")
 }
