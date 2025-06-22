@@ -53,6 +53,7 @@ struct DonationSelectionView: View {
                 Spacer()
                     .frame(height: KioskLayoutConstants.titleBottomSpacing)
                 
+    
                 // Content area - buttons
                 VStack(spacing: KioskLayoutConstants.buttonSpacing) {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: KioskLayoutConstants.buttonSpacing), count: 3), spacing: KioskLayoutConstants.buttonSpacing) {
@@ -64,7 +65,10 @@ struct DonationSelectionView: View {
                     if kioskStore.allowCustomAmount {
                         customAmountButton
                     }
+
+                
                 }
+                
                 .frame(maxWidth: KioskLayoutConstants.maxContentWidth)
                 .padding(.horizontal, KioskLayoutConstants.contentHorizontalPadding)
                 
@@ -189,6 +193,7 @@ struct DonationSelectionView: View {
                 .background(Color.white.opacity(0.3))
                 .cornerRadius(15)
         }
+        
     }
     
     private func handleCustomAmountButtonPress() {
@@ -265,178 +270,207 @@ struct DonationSelectionView: View {
     
     // Receipt prompt overlay - FIXED
     private var receiptPromptOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.8)
-                .edgesIgnoringSafeArea(.all)
-            
-            VStack(spacing: 30) {
-                ZStack {
-                    Circle()
-                        .fill(Color.blue.opacity(0.2))
-                        .frame(width: 100, height: 100)
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                Color.black.opacity(0.9)
+                    .edgesIgnoringSafeArea(.all)
+            }
+            .overlay(alignment: .center) {
+                VStack(spacing: 30) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.2))
+                            .frame(width: 100, height: 100)
+                        
+                        Image(systemName: "doc.text.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.blue)
+                    }
                     
-                    Image(systemName: "envelope.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.blue)
-                }
-                
-                VStack(spacing: 16) {
-                    Text("Would you like a receipt?")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                    
-                    Text("We can email you a donation receipt for your tax records")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.8))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
-                }
-                
-                VStack(spacing: 16) {
-                    // FIXED: "Yes, send receipt" button
-                    Button(action: {
-                        showingReceiptPrompt = false
-                        showingEmailEntry = true
-                    }) {
-                        Text("Yes, send receipt")
+                    VStack(spacing: 16) {
+                        Text("Would you like a receipt?")
+                            .font(.title2)
+                            .fontWeight(.bold)
                             .foregroundColor(.white)
-                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                        
+                        Text("We can send you a donation receipt for your tax records")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    VStack(spacing: 16) {
+                        // Email receipt button
+                        Button(action: {
+                            showingReceiptPrompt = false
+                            showingEmailEntry = true
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "envelope.fill")
+                                    .font(.system(size: 18))
+                                Text("Email receipt")
+                                    .font(.headline)
+                            }
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
                             .background(Color.blue)
                             .cornerRadius(12)
-                    }
-                    
-                    // FIXED: "No thanks" button
-                    Button(action: {
-                        showingReceiptPrompt = false
-                        showingThankYou = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            if showingThankYou {
-                                handleSuccessfulCompletion()
-                            }
                         }
-                    }) {
-                        Text("No thanks")
+                        
+                        // Text/SMS receipt button
+                        Button(action: {
+                            // TODO: Add text receipt logic later
+                            print("Text receipt selected - logic not implemented yet")
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "message.fill")
+                                    .font(.system(size: 18))
+                                Text("Text receipt")
+                                    .font(.headline)
+                            }
                             .foregroundColor(.white)
-                            .font(.headline)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(Color.clear)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                            )
+                            .background(Color.green)
+                            .cornerRadius(12)
+                        }
+                        
+                        // No Receipt button
+                        Button(action: {
+                            showingReceiptPrompt = false
+                            showingThankYou = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                if showingThankYou {
+                                    handleSuccessfulCompletion()
+                                }
+                            }
+                        }) {
+                            Text("No Receipt")
+                                .foregroundColor(.white)
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Color.clear)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                                )
+                        }
                     }
+                    .padding(.horizontal, 40)
                 }
-                .padding(.horizontal, 40)
+                .padding(40)
+                .offset(y: -80) // Adjust this to move higher/lower
             }
-            .padding(40)
-        }
     }
     
-    // Email entry overlay - FIXED
     private var emailEntryOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.8)
-                .edgesIgnoringSafeArea(.all)
-            
-            VStack(spacing: 30) {
-                // Email icon
-                ZStack {
-                    Circle()
-                        .fill(Color.green.opacity(0.2))
-                        .frame(width: 100, height: 100)
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                Color.black.opacity(0.9)
+                    .edgesIgnoringSafeArea(.all)
+            }
+            .overlay(alignment: .center) {
+                VStack(spacing: 30) {
+                    // Email icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.2))
+                            .frame(width: 100, height: 100)
+                        
+                        Image(systemName: "at")
+                            .font(.system(size: 40, weight: .medium))
+                            .foregroundColor(.blue)
+                    }
                     
-                    Image(systemName: "at")
-                        .font(.system(size: 40, weight: .medium))
-                        .foregroundColor(.green)
-                }
-                
-                VStack(spacing: 16) {
-                    Text("Enter your email")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    
-                    Text("We'll send your donation receipt to this email address")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.8))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
-                }
-                
-                // Email input field - FIXED: Removed placeholder text
-                VStack(spacing: 12) {
-                    TextField("", text: $emailAddress)
-                        .textFieldStyle(EmailTextFieldStyle())
-                        .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .onChange(of: emailAddress) { _, newValue in
-                            validateEmail(newValue)
-                            resetTimeout() 
-                        }
-                    
-                    if !emailAddress.isEmpty && !isEmailValid {
-                        Text("Please enter a valid email address")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(spacing: 16) {
+                        Text("Enter your email")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        
+                        Text("We'll send your donation receipt to this email address")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                            .multilineTextAlignment(.center)
                             .padding(.horizontal, 20)
                     }
-                }
-                .padding(.horizontal, 40)
-                
-                VStack(spacing: 16) {
-                    // FIXED: Send Receipt button
-                    Button(action: sendReceipt) {
-                        HStack {
-                            if isSendingReceipt {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .scaleEffect(0.9)
-                                Text("Sending...")
-                            } else {
-                                Image(systemName: "paperplane.fill")
-                                Text("Send Receipt")
-                            }
-                        }
-                        .foregroundColor(.white)
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(isEmailValid && !isSendingReceipt ? Color.green : Color.gray)
-                        .cornerRadius(12)
-                    }
-                    .disabled(!isEmailValid || isSendingReceipt)
                     
-                    // FIXED: Back button
-                    Button(action: {
-                        showingEmailEntry = false
-                        showingReceiptPrompt = true
-                        emailAddress = ""
-                        isEmailValid = false
-                    }) {
-                        Text("Back")
+                    // Email input field - FIXED: Removed placeholder text
+                    VStack(spacing: 12) {
+                        TextField("", text: $emailAddress)
+                            .textFieldStyle(EmailTextFieldStyle())
+                            .keyboardType(.emailAddress)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .onChange(of: emailAddress) { _, newValue in
+                                validateEmail(newValue)
+                                resetTimeout()
+                            }
+                        
+                        if !emailAddress.isEmpty && !isEmailValid {
+                            Text("Please enter a valid email address")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 20)
+                        }
+                    }
+                    .padding(.horizontal, 40)
+                    
+                    VStack(spacing: 16) {
+                        // FIXED: Send Receipt button
+                        Button(action: sendReceipt) {
+                            HStack {
+                                if isSendingReceipt {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.9)
+                                    Text("Sending...")
+                                } else {
+                                    Image(systemName: "paperplane.fill")
+                                    Text("Send Receipt")
+                                }
+                            }
                             .foregroundColor(.white)
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(Color.clear)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                            )
+                            .background(isEmailValid && !isSendingReceipt ? Color.green : Color.gray)
+                            .cornerRadius(12)
+                        }
+                        .disabled(!isEmailValid || isSendingReceipt)
+                        
+                        // FIXED: Back button
+                        Button(action: {
+                            showingEmailEntry = false
+                            showingReceiptPrompt = true
+                            emailAddress = ""
+                            isEmailValid = false
+                        }) {
+                            Text("Back")
+                                .foregroundColor(.white)
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Color.clear)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                                )
+                        }
+                        .disabled(isSendingReceipt)
                     }
-                    .disabled(isSendingReceipt)
+                    .padding(.horizontal, 40)
                 }
-                .padding(.horizontal, 40)
+                .padding(40)
+                .offset(y: -80) // Same positioning as receipt prompt
             }
-            .padding(40)
-        }
     }
     
     // MARK: - Helper Methods
