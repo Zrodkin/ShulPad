@@ -813,3 +813,4 @@ struct DonationSelectionView_Previews: PreviewProvider {
             .environmentObject(SquareCatalogService(authService: SquareAuthService()))
     }
 }
+//test
