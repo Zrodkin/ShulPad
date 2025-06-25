@@ -17,6 +17,7 @@ struct DonationPadApp: App {
     @State private var permissionService: SquarePermissionService?
     
     @State private var isInitialized = false
+    @State private var hasInjectedServices = false
     
     init() {
         setupBasicConfiguration()
@@ -36,6 +37,12 @@ struct DonationPadApp: App {
                 .opacity(isInitialized ? 1.0 : 0.0)
                 .animation(.easeInOut(duration: 0.5), value: isInitialized)
                 .onAppear {
+                    if !hasInjectedServices {
+                        // ✅ FIXED: Inject services after SwiftUI initialization
+                        injectServices()
+                        hasInjectedServices = true
+                    }
+                    
                     if !isInitialized {
                         initializeServicesAsync()
                     }
@@ -50,7 +57,12 @@ struct DonationPadApp: App {
         SquareConfig.setDefaultConfiguration()
         registerDefaultSettings()
         
-        // ✅ CRITICAL: Inject auth service into subscription store
+        // ✅ REMOVED: Don't access StateObjects during init
+        // Service injection moved to onAppear
+    }
+    
+    private func injectServices() {
+        // ✅ FIXED: Inject auth service after SwiftUI initialization
         subscriptionStore.setAuthService(authService)
         print("✅ Auth service injected into subscription store")
     }
@@ -106,4 +118,3 @@ struct DonationPadApp: App {
         }
     }
 }
-

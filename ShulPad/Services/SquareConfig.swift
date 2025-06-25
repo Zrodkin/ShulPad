@@ -47,7 +47,8 @@ struct SquareConfig {
         "PAYMENTS_READ",
         "ITEMS_READ",
         "ITEMS_WRITE",
-        "ORDERS_WRITE"
+        "ORDERS_WRITE",
+        "CUSTOMERS_WRITE"
     ]
     
     // 🚀 NEW: Fast startup configuration (ADD THIS METHOD)

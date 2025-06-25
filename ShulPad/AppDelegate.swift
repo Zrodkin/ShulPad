@@ -128,14 +128,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     private func handleSubscriptionSuccess(_ url: URL) {
         print("🎉 Subscription activated successfully!")
         
-        // Extract subscription ID and organization ID if available
+        // Extract subscription ID and merchant ID
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let subscriptionId = components?.queryItems?.first(where: { $0.name == "subscription_id" })?.value
-        let orgId = components?.queryItems?.first(where: { $0.name == "org_id" })?.value
-        
+        let merchantId = components?.queryItems?.first(where: { $0.name == "merchant_id" })?.value
+
         print("📋 Subscription Success Parameters:")
         print("  - Subscription ID: \(subscriptionId ?? "none")")
-        print("  - Organization ID: \(orgId ?? "none")")
+        print("  - Merchant ID: \(merchantId ?? "none")")  // ✅ CHANGE THIS LINE
         
         DispatchQueue.main.async {
             // Post notification to refresh subscription status
@@ -144,7 +144,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 object: nil,
                 userInfo: [
                     "subscription_id": subscriptionId ?? "",
-                    "org_id": orgId ?? ""
+                    "merchant_id": merchantId ?? ""  // ✅ CHANGE THESE LINES
                 ]
             )
             
@@ -157,17 +157,17 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         print("🚪 User cancelled subscription checkout")
         
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let orgId = components?.queryItems?.first(where: { $0.name == "org_id" })?.value
-        
+        let merchantId = components?.queryItems?.first(where: { $0.name == "merchant_id" })?.value
+
         print("📋 Subscription Cancelled Parameters:")
-        print("  - Organization ID: \(orgId ?? "none")")
+        print("  - Merchant ID: \(merchantId ?? "none")")  // ✅ CHANGE THIS LINE
         
         DispatchQueue.main.async {
             // Post notification that user cancelled (optional)
             NotificationCenter.default.post(
                 name: .subscriptionCancelled,
                 object: nil,
-                userInfo: ["org_id": orgId ?? ""]
+                userInfo: ["merchant_id": merchantId ?? ""]  // ✅ CHANGE THIS LINE
             )
             
             print("ℹ️ User returned to app after cancelling subscription")
@@ -178,17 +178,17 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         print("⚙️ User returned from subscription management")
         
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let orgId = components?.queryItems?.first(where: { $0.name == "org_id" })?.value
-        
+        let merchantId = components?.queryItems?.first(where: { $0.name == "merchant_id" })?.value
+
         print("📋 Subscription Management Parameters:")
-        print("  - Organization ID: \(orgId ?? "none")")
+        print("  - Merchant ID: \(merchantId ?? "none")")  // ✅ CHANGE THIS LINE
         
         DispatchQueue.main.async {
             // Refresh subscription status in case changes were made
             NotificationCenter.default.post(
                 name: .subscriptionStatusChanged,
                 object: nil,
-                userInfo: ["org_id": orgId ?? ""]
+                userInfo: ["merchant_id": merchantId ?? ""]  // ✅ CHANGE THIS LINE
             )
             
             print("🔄 Refreshing subscription status after management")

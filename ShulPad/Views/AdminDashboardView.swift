@@ -151,7 +151,7 @@ struct AdminDashboardView: View {
                                           Color.green.opacity(0.15) : Color.orange.opacity(0.15))
                                     .frame(width: 32, height: 32)
                                 
-                                Image(systemName: "creditcard.wireless.fill")
+                                Image(systemName: "creditcard.trianglebadge.exclamationmark")
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(squarePaymentService.isReaderConnected ? .green : .orange)
                             }
