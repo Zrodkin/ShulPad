@@ -67,6 +67,10 @@ class SquarePaymentService: NSObject, ObservableObject {
             name: .squareAuthenticationSuccessful,
             object: nil
         )
+        // Start maintenance after a delay to ensure everything is initialized
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.startIdempotencyKeyMaintenance()
+        }
     }
     
     deinit {
@@ -106,6 +110,17 @@ class SquarePaymentService: NSObject, ObservableObject {
     /// Deauthorize the Square SDK
     func deauthorizeSDK(completion: @escaping () -> Void = {}) {
         sdkInitializationService.deauthorizeSDK(completion: completion)
+    }
+    
+    // In init() or when payment service starts
+    func startIdempotencyKeyMaintenance() {
+        // Clean up on start
+        idempotencyKeyManager.cleanupExpiredKeys()
+        
+        // Clean up daily
+        Timer.scheduledTimer(withTimeInterval: 86400, repeats: true) { [weak self] _ in
+            self?.idempotencyKeyManager.cleanupExpiredKeys()
+        }
     }
     
     // MARK: - Square's Built-in Reader Management
@@ -493,6 +508,9 @@ extension SquarePaymentService: PaymentManagerDelegate {
             // Handle successful completion
             self.mainPaymentCompletion?(true, payment.id)
             self.mainPaymentCompletion = nil
+            
+            // ADD THIS LINE:
+            self.idempotencyKeyManager.cleanupExpiredKeys()
         }
     }
     

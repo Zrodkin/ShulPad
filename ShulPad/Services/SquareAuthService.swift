@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SquareMobilePaymentsSDK
 
 class SquareAuthService: ObservableObject {
     @Published var isAuthenticated = false
@@ -374,6 +375,8 @@ class SquareAuthService: ObservableObject {
                     self.authError = nil
                     
                     print("✅ Authentication verified with server")
+                    // Check SDK health after successful auth verification
+                    self.checkSDKHealth()
                     print("📍 Location ID: \(locationId)")
                     print("🏢 Merchant ID: \(merchantId)")
                     
@@ -448,6 +451,8 @@ class SquareAuthService: ObservableObject {
                 
                 if success {
                     print("✅ Token refresh successful - rechecking authentication")
+                    // Check SDK health after successful refresh
+                    self.checkSDKHealth()
                     // Re-check auth after successful refresh
                     self.performAuthCheck()
                 } else {
@@ -458,7 +463,25 @@ class SquareAuthService: ObservableObject {
         }
     }
     
-    // UPDATED: Refresh token with completion handler
+    // Check SDK health and sync with auth state
+    func checkSDKHealth() {
+        print("🏥 Checking SDK health...")
+        
+        guard let paymentService = self.paymentService else {
+            print("❌ No payment service available for SDK health check")
+            return
+        }
+        
+        // Check if our auth state matches SDK state
+        let hasValidToken = isAuthenticated && accessToken != nil
+        let sdkAuthorized = paymentService.isSDKAuthorized()
+        
+        if hasValidToken && !sdkAuthorized {
+            print("⚠️ SDK not authorized but we have valid tokens - posting re-authorization notification")
+            NotificationCenter.default.post(name: .squareSDKNeedsReauthorization, object: nil)
+        }
+    }
+    
     func refreshAccessToken(refreshToken: String, completion: @escaping (Bool) -> Void) {
         guard let url = URL(string: "\(SquareConfig.backendBaseURL)\(SquareConfig.refreshEndpoint)") else {
             authError = "Invalid refresh URL"
@@ -469,7 +492,7 @@ class SquareAuthService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15.0 // Longer timeout for refresh
+        request.timeoutInterval = 15.0
         
         let body: [String: Any] = [
             "organization_id": organizationId,
@@ -528,7 +551,10 @@ class SquareAuthService: ObservableObject {
                             }
                             
                             print("✅ Square token refreshed successfully!")
-                            completion(true)
+                            
+                            // CRITICAL: Re-authorize SDK with new token
+                            self.reauthorizeSDKAfterTokenRefresh(completion: completion)
+                            return
                         } else {
                             self.authError = "Invalid refresh response format"
                             completion(false)
@@ -543,6 +569,32 @@ class SquareAuthService: ObservableObject {
                 }
             }
         }.resume()
+    }
+    
+    // CRITICAL: Re-authorize SDK after token refresh
+    private func reauthorizeSDKAfterTokenRefresh(completion: @escaping (Bool) -> Void) {
+        print("🔄 Re-authorizing SDK after token refresh...")
+        
+        guard let paymentService = self.paymentService else {
+            print("❌ No payment service available for SDK re-authorization")
+            completion(true) // Still return true since tokens were refreshed
+            return
+        }
+        
+        // Deauthorize current SDK session first
+        paymentService.deauthorizeSDK {
+            // Re-initialize SDK with new tokens
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                paymentService.initializeSDK()
+                
+                // Verify SDK is authorized
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    let isAuthorized = paymentService.isSDKAuthorized()
+                    print(isAuthorized ? "✅ SDK re-authorized successfully" : "❌ SDK re-authorization failed")
+                    completion(isAuthorized)
+                }
+            }
+        }
     }
     
     // MARK: - OAuth Flow Methods
@@ -1377,4 +1429,7 @@ extension SquareAuthService {
 // MARK: - Notification Names Extension
 extension Notification.Name {
     static let squareAuthenticationStatusChanged = Notification.Name("SquareAuthenticationStatusChanged")
+}
+extension Notification.Name {
+    static let squareSDKNeedsReauthorization = Notification.Name("SquareSDKNeedsReauthorization")
 }

@@ -36,6 +36,35 @@ class IdempotencyKeyManager {
     func getKey(for id: String) -> IdempotencyKey? {
         return storage[id]
     }
+    
+    // Add this method to IdempotencyKeyManager
+    func cleanupExpiredKeys() {
+        let cutoffDate = Date().addingTimeInterval(-25 * 3600) // 25 hours to be safe
+        var activeKeys: [String: IdempotencyKey] = [:]
+        
+        for (transactionId, key) in storage {
+            // Parse timestamp from transaction ID
+            let components = transactionId.split(separator: "_")
+            if components.count >= 3,
+               let timestampString = components.last,
+               let timestamp = TimeInterval(timestampString) {
+                
+                let transactionDate = Date(timeIntervalSince1970: timestamp)
+                if transactionDate > cutoffDate {
+                    activeKeys[transactionId] = key
+                }
+            } else {
+                // Keep keys we can't parse (shouldn't happen with your format)
+                activeKeys[transactionId] = key
+            }
+        }
+        
+        let removedCount = storage.count - activeKeys.count
+        if removedCount > 0 {
+            print("🧹 Cleaning up \(removedCount) expired idempotency keys")
+            storage = activeKeys
+        }
+    }
 
     // MARK: - Private Methods
 
