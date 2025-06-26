@@ -335,6 +335,9 @@ class SquarePaymentService: NSObject, ObservableObject {
         allowOffline: Bool,
         completion: @escaping (Bool, String?) -> Void
     ) {
+        
+        clearPaymentHandle()
+        
         DispatchQueue.main.async { [weak self] in
             self?.isProcessingPayment = true
             self?.paymentError = nil
@@ -435,7 +438,13 @@ class SquarePaymentService: NSObject, ObservableObject {
               self.initializeSDK()
           }
       }
-      
+    
+    private func clearPaymentHandle() {
+        if paymentHandle != nil {
+            print("🧹 Clearing payment handle")
+            paymentHandle = nil
+        }
+    }
       // MARK: - Health Check Methods
       
       /// Check if payment system is fully healthy
@@ -508,8 +517,7 @@ extension SquarePaymentService: PaymentManagerDelegate {
             // Handle successful completion
             self.mainPaymentCompletion?(true, payment.id)
             self.mainPaymentCompletion = nil
-            
-            // ADD THIS LINE:
+            self.clearPaymentHandle()
             self.idempotencyKeyManager.cleanupExpiredKeys()
         }
     }
@@ -527,6 +535,9 @@ extension SquarePaymentService: PaymentManagerDelegate {
             // Handle cancellation - return false for success, nil for transaction ID
             self.mainPaymentCompletion?(false, nil)
             self.mainPaymentCompletion = nil
+            
+            // Clean up
+            self.clearPaymentHandle()
         }
     }
     
@@ -543,6 +554,7 @@ extension SquarePaymentService: PaymentManagerDelegate {
             // Handle failure
             self.mainPaymentCompletion?(false, nil)
             self.mainPaymentCompletion = nil
+            self.clearPaymentHandle()
         }
     }
     
