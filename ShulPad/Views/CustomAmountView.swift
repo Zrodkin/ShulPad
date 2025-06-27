@@ -155,6 +155,29 @@ struct UpdatedCustomAmountView: View {
                         .disabled(isProcessingPayment)
                     }
                     
+#if DEBUG
+Button(action: {
+    // Set test data that the receipt function needs
+    paymentId = "TEST_PAYMENT_123"
+    orderId = "TEST_ORDER_456"
+    donationViewModel.selectedAmount = 36.00 // Test amount
+    
+    // Show the receipt prompt
+    showingReceiptPrompt = true
+}) {
+    HStack {
+        Image(systemName: "envelope.badge")
+        Text("Test Receipt")
+    }
+    .foregroundColor(.white)
+    .padding(.horizontal, 20)
+    .padding(.vertical, 10)
+    .background(Color.purple)
+    .cornerRadius(20)
+}
+.padding()
+#endif
+                    
                     
                 }
                 .frame(maxWidth: KioskLayoutConstants.maxContentWidth)

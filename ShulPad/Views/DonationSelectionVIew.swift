@@ -32,7 +32,6 @@ struct DonationSelectionView: View {
     
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dismiss) private var dismiss
-    @Namespace private var customAmountNamespace
     
     var body: some View {
         ZStack {
@@ -95,6 +94,7 @@ struct DonationSelectionView: View {
             )
            
         }
+        .clipped()
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
@@ -123,12 +123,10 @@ struct DonationSelectionView: View {
             }
             startTimeout()
         }
-        .animation(.none, value: navigateToCustomAmount) // Completely instant
         .navigationDestination(isPresented: $navigateToCustomAmount) {
             UpdatedCustomAmountView { amount in
+                // Your completion handler
             }
-            .navigationTransition(.zoom(sourceID: "customAmount", in: customAmountNamespace))
-            .animation(.none, value: navigateToCustomAmount) // Apply to the destination
         }
         .navigationDestination(isPresented: $navigateToHome) {
             // Only navigate to HomeView if home page is enabled
@@ -189,7 +187,6 @@ struct DonationSelectionView: View {
                 .background(Color.white.opacity(0.3))
                 .cornerRadius(15)
         }
-        .matchedTransitionSource(id: "customAmount", in: customAmountNamespace)
     }
     
     private func handleCustomAmountButtonPress() {
