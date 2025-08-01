@@ -6,7 +6,6 @@ struct AdminDashboardView: View {
     @State private var isLoggingOut = false
     @State private var isProcessingLogout = false
     
-    
     @AppStorage("isInAdminMode") private var isInAdminMode: Bool = true
     @EnvironmentObject private var organizationStore: OrganizationStore
     @EnvironmentObject private var kioskStore: KioskStore
@@ -114,129 +113,15 @@ struct AdminDashboardView: View {
                 
                 Spacer()
                 
-                // Connection status section
-                VStack(spacing: 16) {
-                    // Square connection status
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(squareAuthService.isAuthenticated ?
-                                      Color.green.opacity(0.15) : Color.red.opacity(0.15))
-                                .frame(width: 32, height: 32)
-                            
-                            Circle()
-                                .fill(squareAuthService.isAuthenticated ? Color.green : Color.red)
-                                .frame(width: 8, height: 8)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Square Integration")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                            
-                            Text(squareAuthService.isAuthenticated ? "Connected" : "Disconnected")
-                                .font(.caption)
-                                .foregroundStyle(squareAuthService.isAuthenticated ? .green : .red)
-                        }
-                        
-                        Spacer()
-                    }
-                    
-                    // Reader status (only if Square is connected)
-                    if squareAuthService.isAuthenticated {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(squarePaymentService.isReaderConnected ?
-                                          Color.green.opacity(0.15) : Color.orange.opacity(0.15))
-                                    .frame(width: 32, height: 32)
-                                
-                                Image(systemName: "creditcard.trianglebadge.exclamationmark")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(squarePaymentService.isReaderConnected ? .green : .orange)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Card Reader")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                
-                                Text(squarePaymentService.connectionStatus)
-                                    .font(.caption)
-                                    .foregroundStyle(squarePaymentService.isReaderConnected ? .green : .orange)
-                                    .lineLimit(1)
-                            }
-                            
-                            Spacer()
-                        }
-                    }
+                // 🔧 FIX: This entire bottom section now depends on the authentication state.
+                // It will be drawn initially showing "Connecting..." and then redraw itself
+                // once isAuthenticated becomes true, solving the race condition.
+                if squareAuthService.isAuthenticated {
+                    authenticatedFooter
+                } else {
+                    connectingFooter
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.tertiarySystemBackground))
-                )
-                .padding(.horizontal, 16)
-                
-                // Action buttons
-                VStack(spacing: 12) {
-                    // Launch Kiosk button
-                    Button(action: {
-                        kioskStore.updateDonationViewModel(donationViewModel)
-                        isInAdminMode = false
-                    }) {
-                        HStack {
-                            Image(systemName: "play.circle.fill")
-                                .font(.title3)
-                            
-                            Text("Launch Kiosk")
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.green, Color.green.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .disabled(!squareAuthService.isAuthenticated)
-                    .opacity(squareAuthService.isAuthenticated ? 1.0 : 0.5)
-                    
-                    // 🔧 FIX 2: Improved logout button with state guards
-                    Button(action: {
-                        // Prevent double-taps and clicks while processing
-                        guard !isProcessingLogout && !isLoggingOut else {
-                            print("⚠️ Logout already in progress, ignoring tap")
-                            return
-                        }
-                        
-                        print("🔘 Logout button tapped")
-                        showLogoutAlert = true
-                    }) {
-                        HStack {
-                            Image(systemName: "arrow.right.square.fill")
-                                .font(.title3)
-                            
-                            Text(isProcessingLogout ? "Processing..." : "Logout")
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(.tertiarySystemBackground))
-                        .foregroundStyle(.red)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .opacity(isProcessingLogout ? 0.6 : 1.0)
-                    }
-                    .disabled(isProcessingLogout || isLoggingOut) // 🔧 FIX 3: Disable while processing
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
+
             }
             .background(Color(.systemBackground))
             .navigationBarHidden(true)
@@ -271,7 +156,6 @@ struct AdminDashboardView: View {
             }
             .background(Color(.systemGroupedBackground))
         }
-        // 🔧 FIX 4: Improved alert with proper state management
         .alert("Logout", isPresented: $showLogoutAlert) {
             Button("Cancel", role: .cancel) {
                 print("🚫 Logout cancelled by user")
@@ -282,10 +166,8 @@ struct AdminDashboardView: View {
                 print("✅ Logout confirmed by user")
                 showLogoutAlert = false
                 
-                // 🔧 FIX 5: Set processing state immediately
                 isProcessingLogout = true
                 
-                // 🔧 FIX 6: Use a longer delay to ensure alert dismissal
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     initiateLogoutProcess()
                 }
@@ -300,41 +182,178 @@ struct AdminDashboardView: View {
                 }
             }
         )
-        .onChange(of: squareAuthService.isAuthenticated) { _, newValue in
-            if newValue {
-                squarePaymentService.initializeSDK()
-            }
-        }
+        // 🔧 FIX: Simplified the lifecycle methods.
         .onAppear {
-            if squareAuthService.isAuthenticated {
-                squarePaymentService.initializeSDK()
-            }
+             // onAppear should trigger the checks.
+            squareAuthService.checkAuthentication()
+            subscriptionStore.refreshSubscriptionStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .squareAuthenticationStatusChanged)) { _ in
-            // Handle authentication status changes
+            // When auth changes, always refresh the subscription status as well.
+            subscriptionStore.refreshSubscriptionStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LaunchKioskFromQuickSetup"))) { _ in
             print("🚀 Launching kiosk from quick setup")
             kioskStore.updateDonationViewModel(donationViewModel)
             isInAdminMode = false
         }
-        .onReceive(NotificationCenter.default.publisher(for: .subscriptionActivated)) { _ in
-            subscriptionStore.refreshSubscriptionStatus()
+    }
+    
+    // 🔧 FIX: Extracted the entire authenticated footer into its own computed property.
+    private var authenticatedFooter: some View {
+        VStack {
+            // Connection status section
+            VStack(spacing: 16) {
+                // Square connection status
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.15))
+                            .frame(width: 32, height: 32)
+                        
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 8, height: 8)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Square Integration")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        Text("Connected")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    
+                    Spacer()
+                }
+                
+                // Reader status
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(squarePaymentService.isReaderConnected ?
+                                  Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                            .frame(width: 32, height: 32)
+                        
+                        Image(systemName: "creditcard.trianglebadge.exclamationmark")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(squarePaymentService.isReaderConnected ? .green : .orange)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Card Reader")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        Text(squarePaymentService.connectionStatus)
+                            .font(.caption)
+                            .foregroundStyle(squarePaymentService.isReaderConnected ? .green : .orange)
+                            .lineLimit(1)
+                    }
+                    
+                    Spacer()
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.tertiarySystemBackground))
+            )
+            .padding(.horizontal, 16)
+            
+            // Action buttons
+            actionButtons
         }
-        .onReceive(NotificationCenter.default.publisher(for: .refreshSubscriptionStatus)) { _ in
-            subscriptionStore.refreshSubscriptionStatus()
+    }
+
+    // 🔧 FIX: Created a placeholder view for the initial connecting state.
+    private var connectingFooter: some View {
+         VStack {
+            HStack {
+                ProgressView()
+                    .padding(.trailing, 8)
+                Text("Connecting to Square...")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(32)
+            
+            actionButtons
+                .disabled(true)
+                .opacity(0.6)
         }
     }
     
-    // MARK: - 🔧 FIX 7: Improved Logout Methods with Better Error Handling
+    // Action buttons remain in their own view for clarity.
+    private var actionButtons: some View {
+        VStack(spacing: 12) {
+            // Launch Kiosk button
+            Button(action: {
+                kioskStore.updateDonationViewModel(donationViewModel)
+                isInAdminMode = false
+            }) {
+                HStack {
+                    Image(systemName: "play.circle.fill")
+                        .font(.title3)
+                    
+                    Text("Launch Kiosk")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    LinearGradient(
+                        colors: [Color.green, Color.green.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .foregroundColor(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            // Button is no longer disabled
+        
+            
+            
+            Button(action: {
+                guard !isProcessingLogout && !isLoggingOut else {
+                    print("⚠️ Logout already in progress, ignoring tap")
+                    return
+                }
+                
+                print("🔘 Logout button tapped")
+                showLogoutAlert = true
+            }) {
+                HStack {
+                    Image(systemName: "arrow.right.square.fill")
+                        .font(.title3)
+                    
+                    Text(isProcessingLogout ? "Processing..." : "Logout")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Color(.tertiarySystemBackground))
+                .foregroundStyle(.red)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .opacity(isProcessingLogout ? 0.6 : 1.0)
+            }
+            .disabled(isProcessingLogout || isLoggingOut)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 24)
+    }
+    
+    // MARK: - Logout Methods
     
     private func initiateLogoutProcess() {
             print("🔄 Starting logout process...")
             
-            // 🔧 FIX: Notify that this is an explicit logout
             NotificationCenter.default.post(name: NSNotification.Name("ExplicitLogoutInitiated"), object: nil)
             
-            // Ensure we're on main thread and not already logging out
             DispatchQueue.main.async {
                 guard !self.isLoggingOut else {
                     print("⚠️ Already logging out, skipping duplicate request")
@@ -344,7 +363,6 @@ struct AdminDashboardView: View {
                 self.isLoggingOut = true
                 self.isProcessingLogout = true
                 
-                // 🔧 FIX: Use Task for better async handling
                 Task {
                     await self.performLogoutSequence()
                 }
@@ -355,36 +373,29 @@ struct AdminDashboardView: View {
     private func performLogoutSequence() async {
         print("🔄 Performing logout sequence...")
         
-        // Step 1: FIRST clear local state to prevent re-authentication
         print("🧹 Clearing local state FIRST...")
         squareReaderService.stopMonitoring()
         donationViewModel.resetDonation()
-        squareAuthService.clearLocalAuthData()  // This sets logout flags
+        squareAuthService.clearLocalAuthData()
         
-        // Step 2: Update UI state immediately
         UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
         self.isLoggingOut = false
         self.isProcessingLogout = false
         
-        // Step 3: THEN try server disconnect (async, can fail)
         print("🌐 Attempting server disconnect...")
         squareAuthService.disconnectFromServer { success in
             print("🌐 Server disconnect result: \(success)")
-            // Don't care if this fails - local logout already complete
         }
         
-        // Step 4: THEN try SDK deauthorization (async, can fail)
         if squarePaymentService.isSDKAuthorized() {
             print("🔐 Deauthorizing Square SDK...")
             squarePaymentService.deauthorizeSDK {
                 print("✅ SDK deauthorization complete")
-                // 🔧 RESET logout flags after everything is done
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     self.squareAuthService.resetLogoutFlags()
                 }
             }
         } else {
-            // 🔧 RESET logout flags even if no SDK to deauthorize
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 self.squareAuthService.resetLogoutFlags()
             }
@@ -393,7 +404,6 @@ struct AdminDashboardView: View {
         print("✅ Logout process complete!")
     }
     
-    // 🔧 FIX 9: Fallback cleanup method (keeping original structure as backup)
     private func attemptServerDisconnect() {
         print("🌐 [FALLBACK] Attempting to disconnect from server...")
         squareAuthService.disconnectFromServer { serverDisconnectSuccess in

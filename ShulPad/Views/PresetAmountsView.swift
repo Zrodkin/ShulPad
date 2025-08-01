@@ -238,6 +238,7 @@ struct SimplePresetCard: View {
     
     var body: some View {
         VStack(spacing: 8) {
+            // Main content area - now fully clickable
             if isEditing {
                 HStack(spacing: 4) {
                     Text("$")
@@ -254,16 +255,21 @@ struct SimplePresetCard: View {
                             finishEditing()
                         }
                 }
+                .frame(maxWidth: .infinity, minHeight: 44)
             } else {
+                // Make the entire content area clickable
                 Button(action: startEditing) {
                     Text("$\(amount)")
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
             }
             
+            // Remove button (only show when not editing and removable)
             if canRemove && !isEditing {
                 Button(action: onRemove) {
                     Image(systemName: "minus.circle.fill")
@@ -283,8 +289,15 @@ struct SimplePresetCard: View {
                 .stroke(isEditing ? Color.blue : Color.clear, lineWidth: 2)
         )
         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+        .animation(.easeInOut(duration: 0.1), value: isEditing)
         .onAppear {
             editAmount = amount
+        }
+        .onDisappear {
+            // Auto-save when view disappears (user navigates away)
+            if isEditing {
+                finishEditing()
+            }
         }
     }
     

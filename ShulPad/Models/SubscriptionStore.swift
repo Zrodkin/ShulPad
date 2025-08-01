@@ -1,10 +1,11 @@
 // ==========================================
-// UPDATED iOS SUBSCRIPTION STORE
+// COMPLETE ENHANCED iOS SUBSCRIPTION STORE
 // SubscriptionStore.swift
 // ==========================================
 
 import Foundation
 import Combine
+import UIKit
 
 // MARK: - Enhanced Subscription Models
 struct SubscriptionDetails: Codable, Identifiable {
@@ -17,6 +18,7 @@ struct SubscriptionDetails: Codable, Identifiable {
     let cardLastFour: String?
     let startDate: String?
     let canceledDate: String?
+    let serviceEndsDate: String? // NEW: When service actually stops
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -28,24 +30,70 @@ struct SubscriptionDetails: Codable, Identifiable {
         case cardLastFour = "card_last_four"
         case startDate = "start_date"
         case canceledDate = "canceled_date"
+        case serviceEndsDate = "service_ends_date"
     }
     
-    var isActive: Bool {
-        return status == "active"
+    // Enhanced status properties
+    var isActive: Bool { status == "active" }
+    var isPaused: Bool { status == "paused" }
+    var isCanceled: Bool { status == "canceled" }
+    var isCanceledButActive: Bool {
+            return status == "canceled" && serviceEndsDate != nil && !isExpired
+        }
+        
+    var isExpired: Bool {
+        guard let serviceDateString = serviceEndsDate else { return false }
+        guard let serviceDate = parseDate(serviceDateString) else { return false }
+        return Date() > serviceDate
     }
     
-    var isPaused: Bool {
-        return status == "paused"
-    }
+    var daysUntilServiceEnds: Int? {
+            guard let serviceDateString = serviceEndsDate,
+                  let serviceDate = parseDate(serviceDateString) else { return nil }
+            
+            let calendar = Calendar.current
+            let startOfToday = calendar.startOfDay(for: Date())
+            let startOfEndDate = calendar.startOfDay(for: serviceDate)
+            let components = calendar.dateComponents([.day], from: startOfToday, to: startOfEndDate)
+            return max(0, components.day ?? 0)
+        }
     
-    var isCanceled: Bool {
-        return status == "canceled"
+    // Helper function for date parsing
+    private func parseDate(_ dateString: String) -> Date? {
+        // Try ISO8601 first (with time)
+        if let date = ISO8601DateFormatter().date(from: dateString) {
+            return date
+        }
+        
+        // Try simple date format (YYYY-MM-DD)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        return formatter.date(from: dateString)
     }
 }
 
 struct SubscriptionResponse: Codable {
     let subscription: SubscriptionDetails?
     let error: String?
+}
+
+struct SubscriptionStatusResponse: Decodable {
+    let subscription: SubscriptionDetails?
+    let canUseKiosk: Bool
+    let gracePeriodEnds: String?
+    let message: String?
+    let urgencyLevel: String? // NEW: 'none', 'warning', 'critical'
+    let error: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case subscription
+        case canUseKiosk = "can_use_kiosk"
+        case gracePeriodEnds = "grace_period_ends"
+        case message
+        case urgencyLevel = "urgency_level"
+        case error
+    }
 }
 
 struct CreateSubscriptionRequest: Codable {
@@ -72,7 +120,19 @@ class SubscriptionStore: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
     @Published var hasActiveSubscription = false
-    @Published var subscriptionHistory: [SubscriptionDetails] = []
+    @Published var canUseKiosk: Bool = false
+    
+    // NEW: Enhanced status messaging
+    @Published var statusMessage: String?
+    @Published var urgencyLevel: UrgencyLevel = .none
+    @Published var gracePeriodEnds: Date?
+    @Published var daysUntilExpiration: Int?
+    
+    // NEW: Debouncing properties to prevent infinite loops
+    private var refreshTimer: Timer?
+    private var isRefreshInProgress = false
+    private let refreshDebounceInterval: TimeInterval = 2.0 // 2 second minimum between refreshes
+    private var lastRefreshTime: Date = Date.distantPast
     
     private var authService: SquareAuthService?
     private var cancellables = Set<AnyCancellable>()
@@ -81,6 +141,28 @@ class SubscriptionStore: ObservableObject {
     private let cacheKey = "cached_subscription_status"
     private let cacheTimeKey = "subscription_cache_time"
     private let cacheValidityDuration: TimeInterval = 300 // 5 minutes
+    
+    enum UrgencyLevel: String, CaseIterable {
+        case none = "none"
+        case warning = "warning"
+        case critical = "critical"
+        
+        var color: UIColor {
+            switch self {
+            case .none: return .systemBlue
+            case .warning: return .systemOrange
+            case .critical: return .systemRed
+            }
+        }
+        
+        var systemName: String {
+            switch self {
+            case .none: return "info.circle"
+            case .warning: return "exclamationmark.triangle"
+            case .critical: return "exclamationmark.triangle.fill"
+            }
+        }
+    }
     
     init() {
         setupNotifications()
@@ -93,23 +175,138 @@ class SubscriptionStore: ObservableObject {
         print("✅ SubscriptionStore: Auth service injected")
     }
     
-    // MARK: - Setup Notifications
+    // MARK: - Fixed Setup Notifications (reduced frequency)
     private func setupNotifications() {
+        // Only listen to external events, not internal status changes
         NotificationCenter.default.publisher(for: .subscriptionActivated)
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.refreshSubscriptionStatus()
-                }
+                self?.refreshSubscriptionStatus()
             }
             .store(in: &cancellables)
             
         NotificationCenter.default.publisher(for: .refreshSubscriptionStatus)
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.refreshSubscriptionStatus()
-                }
+                self?.refreshSubscriptionStatus()
             }
             .store(in: &cancellables)
+    
+        // REMOVED: subscriptionStatusChanged listener to prevent loops
+    }
+    
+    // MARK: - Fixed Enhanced Status Refresh with Debouncing
+    func refreshSubscriptionStatus() {
+        // Prevent multiple simultaneous refreshes
+        guard !isRefreshInProgress else {
+            print("⚠️ Refresh already in progress, skipping...")
+            return
+        }
+        
+        // Debounce rapid successive calls
+        let timeSinceLastRefresh = Date().timeIntervalSince(lastRefreshTime)
+        guard timeSinceLastRefresh >= refreshDebounceInterval else {
+            print("⚠️ Refresh called too soon (within \(refreshDebounceInterval)s), debouncing...")
+            
+            // Cancel existing timer and create a new one
+            refreshTimer?.invalidate()
+            refreshTimer = Timer.scheduledTimer(withTimeInterval: refreshDebounceInterval - timeSinceLastRefresh, repeats: false) { [weak self] _ in
+                self?.performRefresh()
+            }
+            return
+        }
+        
+        performRefresh()
+    }
+    
+    private func performRefresh() {
+        guard let authService = authService,
+              let merchantId = authService.merchantId,
+              !merchantId.isEmpty else {
+            print("❌ SubscriptionStore: Auth service or merchant ID not available for status refresh.")
+            return
+        }
+        
+        // Mark refresh as in progress
+        isRefreshInProgress = true
+        lastRefreshTime = Date()
+        
+        let urlString = "\(SquareConfig.backendBaseURL)/api/subscriptions/status?merchant_id=\(merchantId)"
+        guard let url = URL(string: urlString) else {
+            print("❌ SubscriptionStore: Invalid status URL")
+            isRefreshInProgress = false
+            return
+        }
+        
+        isLoading = true
+        error = nil
+        
+        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                // Always mark refresh as complete
+                self.isRefreshInProgress = false
+                self.isLoading = false
+                
+                if let error = error {
+                    self.handleNetworkError(error)
+                    return
+                }
+                
+                guard let data = data else {
+                    self.error = "No data received from status endpoint"
+                    return
+                }
+                
+                do {
+                    let statusResponse = try JSONDecoder().decode(SubscriptionStatusResponse.self, from: data)
+                    
+                    // Update all subscription state
+                    self.subscription = statusResponse.subscription
+                    self.canUseKiosk = statusResponse.canUseKiosk
+                    self.hasActiveSubscription = statusResponse.subscription?.isActive ?? false
+                    self.error = statusResponse.error
+                    self.statusMessage = statusResponse.message
+                    self.urgencyLevel = UrgencyLevel(rawValue: statusResponse.urgencyLevel ?? "none") ?? .none
+                    
+                    // Parse grace period end date
+                    if let gracePeriodString = statusResponse.gracePeriodEnds {
+                        self.gracePeriodEnds = self.parseDate(gracePeriodString)
+                        self.calculateDaysUntilExpiration()
+                    } else if let serviceEndsString = self.subscription?.serviceEndsDate {
+                        self.gracePeriodEnds = self.parseDate(serviceEndsString)
+                        self.calculateDaysUntilExpiration()
+                    } else {
+                        self.gracePeriodEnds = nil
+                        self.daysUntilExpiration = nil
+                    }
+                    
+                    if let subscription = statusResponse.subscription {
+                        self.cacheSubscriptionStatus(subscription)
+                        print("✅ SubscriptionStore: Status refreshed - \(subscription.status)")
+                    } else {
+                        self.clearCachedSubscription()
+                        print("📭 SubscriptionStore: No subscription found")
+                    }
+                    
+                } catch let decodingError {
+                    self.error = "Failed to parse subscription status"
+                    self.subscription = nil
+                    self.hasActiveSubscription = false
+                    self.canUseKiosk = false
+                    self.clearCachedSubscription()
+                    print("❌ SubscriptionStore: Parse error - \(decodingError)")
+                }
+                
+                // REMOVED: Don't call objectWillChange.send() AND post notification
+                // This was causing the infinite loop!
+                // self.objectWillChange.send()
+                
+                // Only post notification for external listeners, not internal UI updates
+                // NotificationCenter.default.post(name: .subscriptionStatusChanged, object: nil)
+            }
+        }.resume()
     }
     
     // MARK: - Create Subscription
@@ -121,13 +318,7 @@ class SubscriptionStore: ObservableObject {
         promoCode: String? = nil,
         completion: @escaping (Bool, String?) -> Void
     ) {
-        guard let authService = authService else {
-            completion(false, "Authentication service not available")
-            return
-        }
-        
-   
-        guard let merchantId = authService.merchantId, !merchantId.isEmpty else {
+        guard let authService = authService, let merchantId = authService.merchantId, !merchantId.isEmpty else {
             completion(false, "No merchant ID available")
             return
         }
@@ -141,8 +332,7 @@ class SubscriptionStore: ObservableObject {
         isLoading = true
         error = nil
         
-      
-        let request = CreateSubscriptionRequest(
+        let requestPayload = CreateSubscriptionRequest(
             merchantId: merchantId,
             planType: planType,
             deviceCount: deviceCount,
@@ -156,7 +346,7 @@ class SubscriptionStore: ObservableObject {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {
-            urlRequest.httpBody = try JSONEncoder().encode(request)
+            urlRequest.httpBody = try JSONEncoder().encode(requestPayload)
         } catch {
             DispatchQueue.main.async {
                 self.isLoading = false
@@ -201,62 +391,71 @@ class SubscriptionStore: ObservableObject {
         }.resume()
     }
     
-    // MARK: - Refresh Subscription Status
-    func refreshSubscriptionStatus() {
-        guard let authService = authService else {
-            print("❌ SubscriptionStore: Auth service not available")
+    // MARK: - Enhanced Cancellation
+    func cancelSubscription(completion: @escaping (Bool, String?) -> Void) {
+        guard let authService = authService, let merchantId = authService.merchantId else {
+            completion(false, "Authentication service or merchant ID not available")
             return
         }
         
-        // ✅ FIX: Use merchantId instead of organizationId
-        guard let merchantId = authService.merchantId, !merchantId.isEmpty else {
-            print("❌ SubscriptionStore: No merchant ID available")
-            return
-        }
-        
-        // ✅ FIX: Use merchant_id in URL (this was already correct)
-        let urlString = "\(SquareConfig.backendBaseURL)/api/subscriptions/status?merchant_id=\(merchantId)"
+        let urlString = "\(SquareConfig.backendBaseURL)/api/subscriptions/cancel"
         guard let url = URL(string: urlString) else {
-            print("❌ SubscriptionStore: Invalid status URL")
+            completion(false, "Invalid request URL")
             return
         }
         
-        isLoading = true
-        error = nil
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+        let requestBody = ["merchant_id": merchantId]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            completion(false, "Failed to prepare cancellation request")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async {
-                self?.isLoading = false
-                
                 if let error = error {
-                    self?.handleNetworkError(error)
+                    completion(false, "Network error: \(error.localizedDescription)")
                     return
                 }
                 
                 guard let data = data else {
-                    self?.error = "No data received"
+                    completion(false, "No response received from the server")
                     return
                 }
                 
                 do {
-                    let response = try JSONDecoder().decode(SubscriptionResponse.self, from: data)
-                    
-                    if let subscription = response.subscription {
-                        self?.subscription = subscription
-                        self?.hasActiveSubscription = subscription.isActive
-                        self?.cacheSubscriptionStatus(subscription)
-                        self?.error = nil
-                        
-                        print("✅ SubscriptionStore: Status refreshed - \(subscription.status)")
+                    // Parse the enhanced cancellation response
+                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let success = json["success"] as? Bool, success {
+                            // Extract professional message from the server
+                            var message = "Your subscription has been cancelled successfully."
+                            
+                            // Try to get message from subscription object first
+                            if let subscriptionData = json["subscription"] as? [String: Any],
+                               let serverMessage = subscriptionData["message"] as? String {
+                                message = serverMessage
+                            } else if let directMessage = json["message"] as? String {
+                                message = directMessage
+                            }
+                            
+                            // Refresh status to get updated information
+                            self?.refreshSubscriptionStatus()
+                            completion(true, message)
+                        } else {
+                            let errorMessage = json["error"] as? String ?? "An unknown error occurred during cancellation."
+                            completion(false, errorMessage)
+                        }
                     } else {
-                        self?.subscription = nil
-                        self?.hasActiveSubscription = false
-                        self?.clearCachedSubscription()
-                        print("📭 SubscriptionStore: No active subscription")
+                        completion(false, "Invalid response format from server.")
                     }
                 } catch {
-                    self?.error = "Failed to parse response: \(error.localizedDescription)"
-                    print("❌ SubscriptionStore: Parse error - \(error)")
+                    completion(false, "Failed to process the cancellation response.")
                 }
             }
         }.resume()
@@ -264,13 +463,8 @@ class SubscriptionStore: ObservableObject {
     
     // MARK: - Pause Subscription
     func pauseSubscription(reason: String = "Customer request", completion: @escaping (Bool, String?) -> Void) {
-        guard let authService = authService else {
-            completion(false, "Authentication service not available")
-            return
-        }
-        
-        guard let merchantId = authService.merchantId else {
-            completion(false, "No merchant ID available")
+        guard let authService = authService, let merchantId = authService.merchantId else {
+            completion(false, "Authentication service or merchant ID not available")
             return
         }
         
@@ -284,10 +478,7 @@ class SubscriptionStore: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let requestBody = [
-            "merchant_id": merchantId,
-            "pause_reason": reason
-        ]
+        let requestBody = ["merchant_id": merchantId, "pause_reason": reason]
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
@@ -303,10 +494,9 @@ class SubscriptionStore: ObservableObject {
                     return
                 }
                 
-                if let httpResponse = response as? HTTPURLResponse,
-                   httpResponse.statusCode == 200 {
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
                     self?.refreshSubscriptionStatus()
-                    completion(true, nil)
+                    completion(true, "Subscription paused successfully")
                 } else {
                     completion(false, "Failed to pause subscription")
                 }
@@ -316,119 +506,12 @@ class SubscriptionStore: ObservableObject {
     
     // MARK: - Resume Subscription
     func resumeSubscription(completion: @escaping (Bool, String?) -> Void) {
-        guard let authService = authService else {
-            completion(false, "Authentication service not available")
-            return
-        }
-        
-        guard let merchantId = authService.merchantId else {  // ✅ CHANGE
+        guard let authService = authService, let merchantId = authService.merchantId else {
             completion(false, "No merchant ID available")
             return
         }
         
         let urlString = "\(SquareConfig.backendBaseURL)/api/subscriptions/resume"
-        guard let url = URL(string: urlString) else {
-            completion(false, "Invalid URL")
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let requestBody = ["merchant_id": merchantId]  // ✅ CHANGED
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        } catch {
-            completion(false, "Failed to encode request")
-            return
-        }
-        
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    completion(false, "Network error: \(error.localizedDescription)")
-                    return
-                }
-                
-                if let httpResponse = response as? HTTPURLResponse,
-                   httpResponse.statusCode == 200 {
-                    self?.refreshSubscriptionStatus()
-                    completion(true, nil)
-                } else {
-                    completion(false, "Failed to resume subscription")
-                }
-            }
-        }.resume()
-    }
-    
-    // MARK: - Change Subscription Plan
-    func changePlan(newPlanType: String, newDeviceCount: Int, completion: @escaping (Bool, String?) -> Void) {
-        guard let authService = authService else {
-            completion(false, "Authentication service not available")
-            return
-        }
-        
-        guard let merchantId = authService.merchantId else {  // ✅ CHANGE
-            completion(false, "No merchant ID available")
-            return
-        }
-        
-        let urlString = "\(SquareConfig.backendBaseURL)/api/subscriptions/change-plan"
-        guard let url = URL(string: urlString) else {
-            completion(false, "Invalid URL")
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let requestBody = [
-            "merchant_id": merchantId,              // ✅ CHANGED
-            "new_plan_type": newPlanType,
-            "new_device_count": newDeviceCount
-        ] as [String : Any]
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        } catch {
-            completion(false, "Failed to encode request")
-            return
-        }
-        
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    completion(false, "Network error: \(error.localizedDescription)")
-                    return
-                }
-                
-                if let httpResponse = response as? HTTPURLResponse,
-                   httpResponse.statusCode == 200 {
-                    self?.refreshSubscriptionStatus()
-                    completion(true, nil)
-                } else {
-                    completion(false, "Failed to change plan")
-                }
-            }
-        }.resume()
-    }
-    
-    // MARK: - Cancel Subscription
-    func cancelSubscription(completion: @escaping (Bool, String?) -> Void) {
-        guard let authService = authService else {
-            completion(false, "Authentication service not available")
-            return
-        }
-        
-        guard let merchantId = authService.merchantId else {  // ✅ CHANGE
-            completion(false, "No merchant ID available")
-            return
-        }
-        
-        let urlString = "\(SquareConfig.backendBaseURL)/api/subscriptions/cancel"
         guard let url = URL(string: urlString) else {
             completion(false, "Invalid URL")
             return
@@ -454,52 +537,209 @@ class SubscriptionStore: ObservableObject {
                     return
                 }
                 
-                if let httpResponse = response as? HTTPURLResponse,
-                   httpResponse.statusCode == 200 {
-                    self?.hasActiveSubscription = false
-                    self?.subscription = nil
-                    self?.clearCachedSubscription()
-                    completion(true, nil)
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    self?.refreshSubscriptionStatus()
+                    completion(true, "Subscription resumed successfully")
                 } else {
-                    completion(false, "Failed to cancel subscription")
+                    completion(false, "Failed to resume subscription")
                 }
             }
         }.resume()
     }
     
-    // MARK: - Generate URLs
-    func getCheckoutURL(planType: String = "monthly", deviceCount: Int = 1, email: String = "") -> URL? {
-        guard let authService = authService else { return nil }
+    // MARK: - Change Subscription Plan
+    func changePlan(newPlanType: String, newDeviceCount: Int, completion: @escaping (Bool, String?) -> Void) {
+        guard let authService = authService, let merchantId = authService.merchantId else {
+            completion(false, "No merchant ID available")
+            return
+        }
         
-        // ✅ FIX: Use merchantId instead of organizationId
-        guard let merchantId = authService.merchantId else { return nil }
+        let urlString = "\(SquareConfig.backendBaseURL)/api/subscriptions/change-plan"
+        guard let url = URL(string: urlString) else {
+            completion(false, "Invalid URL")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let requestBody = [
+            "merchant_id": merchantId,
+            "new_plan_type": newPlanType,
+            "new_device_count": newDeviceCount
+        ] as [String : Any]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            completion(false, "Failed to encode request")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(false, "Network error: \(error.localizedDescription)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    self?.refreshSubscriptionStatus()
+                    completion(true, "Plan changed successfully")
+                } else {
+                    completion(false, "Failed to change plan")
+                }
+            }
+        }.resume()
+    }
+    
+    // MARK: - Helper Methods
+    private func calculateDaysUntilExpiration() {
+        guard let endDate = gracePeriodEnds ?? (subscription?.serviceEndsDate.flatMap { parseDate($0) }) else {
+            daysUntilExpiration = nil
+            return
+        }
+        
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfEndDate = calendar.startOfDay(for: endDate)
+        let components = calendar.dateComponents([.day], from: startOfToday, to: startOfEndDate)
+        daysUntilExpiration = max(0, components.day ?? 0)
+    }
+    
+    private func parseDate(_ dateString: String) -> Date? {
+        // Try ISO8601 first (with time)
+        if let date = ISO8601DateFormatter().date(from: dateString) {
+            return date
+        }
+        
+        // Try simple date format (YYYY-MM-DD)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        return formatter.date(from: dateString)
+    }
+    
+    // MARK: - Professional Status Messages
+    func getStatusDisplayInfo() -> (title: String, message: String, actionText: String?) {
+        guard let subscription = subscription else {
+            return (
+                title: "No Subscription",
+                message: "Subscribe to start accepting payments with your kiosk.",
+                actionText: "Subscribe Now"
+            )
+        }
+        
+        switch subscription.status {
+        case "active":
+            return (
+                title: "Active Subscription",
+                message: "Your \(subscription.planType.capitalized) plan is active and ready to accept payments.",
+                actionText: nil
+            )
+            
+        case "paused":
+            return (
+                title: "Subscription Paused",
+                message: "Your subscription is paused. Resume to continue accepting payments.",
+                actionText: "Resume Subscription"
+            )
+            
+        case "canceled":
+            if let days = daysUntilExpiration {
+                if days == 0 {
+                    return (
+                        title: "Subscription Expired",
+                        message: "Your subscription has ended. Resubscribe to restore your payment kiosk.",
+                        actionText: "Resubscribe Now"
+                    )
+                } else {
+                    return (
+                        title: "Subscription Ending Soon",
+                        message: "Your access will end in \(days) day\(days == 1 ? "" : "s"). Resubscribe to avoid service interruption.",
+                        actionText: "Resubscribe"
+                    )
+                }
+            } else {
+                return (
+                    title: "Subscription Cancelled",
+                    message: "Your subscription has been cancelled. You can resubscribe at any time.",
+                    actionText: "Resubscribe"
+                )
+            }
+            
+        default:
+            return (
+                title: "Subscription Status Unknown",
+                message: "We're unable to determine your subscription status. Please check your connection or contact support.",
+                actionText: "Retry"
+            )
+        }
+    }
+    
+    func formatServiceEndDate() -> String? {
+        guard let subscription = subscription,
+              let serviceEndsString = subscription.serviceEndsDate,
+              let serviceDate = parseDate(serviceEndsString) else {
+            return nil
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter.string(from: serviceDate)
+    }
+    
+    // MARK: - URL Generation
+    func getCheckoutURL(planType: String = "monthly", deviceCount: Int = 1, email: String = "") -> URL? {
+        print("🔍 Attempting to generate checkout URL...")
+        guard let authService = authService else {
+            print("❌ getCheckoutURL failed: authService not available.")
+            return nil
+        }
+        
+        guard let merchantId = authService.merchantId, !merchantId.isEmpty else {
+            print("❌ getCheckoutURL failed: merchantId is not available.")
+            return nil
+        }
         
         let baseURLString = "\(SquareConfig.backendBaseURL)/subscription/checkout"
-        print("🔍 Base URL String: \(baseURLString)")
-        
         var components = URLComponents(string: baseURLString)
         components?.queryItems = [
-            URLQueryItem(name: "merchant_id", value: merchantId),  // ✅ CHANGED: org_id → merchant_id
+            URLQueryItem(name: "merchant_id", value: merchantId),
             URLQueryItem(name: "plan", value: planType),
             URLQueryItem(name: "devices", value: String(deviceCount)),
             URLQueryItem(name: "email", value: email)
         ]
         
         let finalURL = components?.url
-        print("🌐 Final checkout URL: \(finalURL?.absoluteString ?? "nil")")
+        print("✅ Constructed checkout URL: \(finalURL?.absoluteString ?? "nil")")
         
         return finalURL
     }
     
     func getManagementURL() -> URL? {
-        guard let authService = authService else { return nil }
+        print("🔍 Attempting to generate management URL...")
+        guard let authService = authService else {
+            print("❌ getManagementURL failed: authService not available.")
+            return nil
+        }
+        
+        guard let merchantId = authService.merchantId, !merchantId.isEmpty else {
+            print("❌ getManagementURL failed: merchantId is not available.")
+            return nil
+        }
         
         var components = URLComponents(string: "\(SquareConfig.backendBaseURL)/subscription/manage")
         components?.queryItems = [
-            URLQueryItem(name: "merchant_id", value: authService.merchantId)
+            URLQueryItem(name: "merchant_id", value: merchantId)
         ]
         
-        return components?.url
+        let finalURL = components?.url
+        print("✅ Constructed management URL: \(finalURL?.absoluteString ?? "nil")")
+        
+        return finalURL
     }
     
     // MARK: - Caching Support
@@ -521,9 +761,9 @@ class SubscriptionStore: ObservableObject {
             return
         }
         
-        // Only use cache if less than validity duration
+        // Only use cache if it's not stale
         guard Date().timeIntervalSince(cacheTime) < cacheValidityDuration else {
-            print("📭 Cached subscription too old, ignoring")
+            print("📭 Cached subscription is stale, ignoring")
             clearCachedSubscription()
             return
         }
@@ -533,6 +773,8 @@ class SubscriptionStore: ObservableObject {
             print("📦 Using cached subscription status")
             self.subscription = cachedSubscription
             self.hasActiveSubscription = cachedSubscription.isActive
+            // Recalculate expiration on load
+            self.calculateDaysUntilExpiration()
         } catch {
             print("⚠️ Failed to load cached subscription: \(error)")
             clearCachedSubscription()
@@ -542,32 +784,36 @@ class SubscriptionStore: ObservableObject {
     private func clearCachedSubscription() {
         UserDefaults.standard.removeObject(forKey: cacheKey)
         UserDefaults.standard.removeObject(forKey: cacheTimeKey)
-        print("🗑️ Cached subscription cleared")
+        
+        // Also clear related state
+        self.gracePeriodEnds = nil
+        self.daysUntilExpiration = nil
+        self.statusMessage = nil
+        self.urgencyLevel = .none
+        
+        print("🗑️ Cached subscription and related state cleared")
     }
     
     // MARK: - Error Handling
     private func handleNetworkError(_ error: Error) {
-        if error.localizedDescription.contains("offline") ||
-           error.localizedDescription.contains("Internet connection") {
-            // Load cached subscription if available
-            loadCachedSubscription()
-            if self.subscription == nil {
-                self.error = "No internet connection. Please check your network."
-            }
+        // Use a more robust check for network-related errors
+        let nsError = error as NSError
+        if nsError.domain == URLError.errorDomain && [
+            URLError.notConnectedToInternet.rawValue,
+            URLError.timedOut.rawValue,
+            URLError.cannotFindHost.rawValue,
+            URLError.networkConnectionLost.rawValue
+        ].contains(nsError.code) {
+            self.error = "No internet connection. Using last known status."
+            loadCachedSubscription() // Attempt to load from cache as fallback
         } else {
             self.error = "Network error: \(error.localizedDescription)"
         }
     }
-}
-
-// MARK: - Helper Extensions
-extension Encodable {
-    func asDictionary() throws -> [String: Any] {
-        let data = try JSONEncoder().encode(self)
-        guard let dictionary = try JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any] else {
-            throw NSError(domain: "EncodingError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to convert to dictionary"])
-        }
-        return dictionary
+    
+    // MARK: - Cleanup
+    deinit {
+        refreshTimer?.invalidate()
     }
 }
 
@@ -579,3 +825,4 @@ extension Notification.Name {
     static let subscriptionResumed = Notification.Name("SubscriptionResumed")
     static let deviceConflictDetected = Notification.Name("DeviceConflictDetected")
 }
+

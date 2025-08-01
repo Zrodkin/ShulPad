@@ -94,7 +94,6 @@ struct DonationSelectionView: View {
             )
            
         }
-        .clipped()
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
@@ -402,4 +401,3 @@ struct DonationSelectionView_Previews: PreviewProvider {
             .environmentObject(SquareCatalogService(authService: SquareAuthService()))
     }
 }
-

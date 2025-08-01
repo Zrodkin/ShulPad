@@ -30,8 +30,11 @@ struct SquareConfig {
     static let refreshEndpoint = "/api/square/refresh"
     static let disconnectEndpoint = "/api/square/disconnect"
     
-    // Organization identifier
-    static let organizationId = "default"
+    // Simple auto-generated organization ID based on device
+    static var organizationId: String {
+        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        return "org_\(deviceId.prefix(8).lowercased())"
+    }
     
     // Production environment
     static let environment = "production"
@@ -47,8 +50,7 @@ struct SquareConfig {
         "PAYMENTS_READ",
         "ITEMS_READ",
         "ITEMS_WRITE",
-        "ORDERS_WRITE",
-        "CUSTOMERS_WRITE"
+        "ORDERS_WRITE"
     ]
     
     // 🚀 NEW: Fast startup configuration (ADD THIS METHOD)
@@ -161,6 +163,9 @@ struct SquareConfig {
     
     // Generate OAuth URL (updated to use dynamic URLs)
     static func generateOAuthURL(completion: @escaping (URL?, Error?, String?) -> Void) {
+        // ✅ FIXED: Check organization configuration first
+     
+        
         // Ensure configuration is loaded first
         loadConfiguration { _ in
             let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "unknown-device"

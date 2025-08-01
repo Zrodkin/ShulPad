@@ -15,23 +15,15 @@ struct HomePageSettingsView: View {
     @State private var headlineTextSize: Double = KioskLayoutConstants.defaultHeadlineSize
     @State private var subtextTextSize: Double = KioskLayoutConstants.defaultSubtextSize
     
-    @State private var backgroundImageZoom: Double = 1.0 // NEW: Background image zoom level
-    @State private var backgroundImagePanX: Double = 0.0 // 🆕 ADD PAN X
-    @State private var backgroundImagePanY: Double = 0.0 // 🆕 ADD PAN Y
-    
     // Layout section state
     @State private var isLayoutSectionExpanded = false
     @State private var showLayoutSaveToast = false
-    @State private var showFullScreenPreview = false
     
     // Track original values to detect changes
     @State private var originalTextVerticalPosition: KioskLayoutConstants.VerticalTextPosition = .center
     @State private var originalTextVerticalFineTuning: Double = 0.0
     @State private var originalHeadlineTextSize: Double = KioskLayoutConstants.defaultHeadlineSize
     @State private var originalSubtextTextSize: Double = KioskLayoutConstants.defaultSubtextSize
-    @State private var originalBackgroundImageZoom: Double = 1.0 // NEW: Track original zoom
-    @State private var originalBackgroundImagePanX: Double = 0.0 // 🆕 ADD ORIGINAL PAN X
-    @State private var originalBackgroundImagePanY: Double = 0.0 // 🆕 ADD ORIGINAL PAN Y
     
     // Auto-save timer
     @State private var autoSaveTimer: Timer?
@@ -69,73 +61,41 @@ struct HomePageSettingsView: View {
                 
                 // Main content in cards
                 VStack(spacing: 20) {
-                    // Combined Background Image & Preview Card
+                    // Background Image & Preview Card
                     SettingsCard(title: "Background Image", icon: "photo.fill") {
                         VStack(spacing: 16) {
-                            
-                            // Clickable preview (same layout as before)
-                            Button(action: {
-                                showFullScreenPreview = true
-                            }) {
-                                PreviewContent(
-                                    backgroundImage: kioskStore.backgroundImage,
-                                    logoImage: kioskStore.logoImage,
-                                    headline: headline.isEmpty ? "Tap to Donate" : headline,
-                                    subtext: subtext,
-                                    textVerticalPosition: textVerticalPosition,
-                                    textVerticalFineTuning: textVerticalFineTuning,
-                                    headlineTextSize: calculatePreviewHeadlineSize(),
-                                    subtextTextSize: calculatePreviewSubtextSize(),
-                                    height: 300
-                                )
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .overlay(
-                                // Subtle indication it's clickable
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                                    .opacity(0)
-                                    .overlay(
-                                        VStack {
-                                            Spacer()
-                                            HStack {
-                                                Spacer()
-                                                HStack(spacing: 4) {
-                                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                                        .font(.caption2)
-                                                    Text("Tap to expand")
-                                                        .font(.caption2)
-                                                }
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
-                                                .background(.ultraThinMaterial)
-                                                .foregroundStyle(.secondary)
-                                                .clipShape(Capsule())
-                                                .padding(8)
-                                            }
-                                        }
-                                    )
+                            // Simple preview
+                            PreviewContent(
+                                backgroundImage: kioskStore.backgroundImage,
+                                logoImage: kioskStore.logoImage,
+                                headline: headline.isEmpty ? "Tap to Donate" : headline,
+                                subtext: subtext,
+                                textVerticalPosition: textVerticalPosition,
+                                textVerticalFineTuning: textVerticalFineTuning,
+                                headlineTextSize: calculatePreviewHeadlineSize(),
+                                subtextTextSize: calculatePreviewSubtextSize(),
+                                height: 300
                             )
                             
-                            // Action buttons (only show when image exists)
-                            if kioskStore.backgroundImage != nil {
-                                HStack(spacing: 12) {
-                                    Button(action: {
-                                        showingBackgroundImagePicker = true
-                                    }) {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "photo.badge.plus")
-                                                .font(.system(size: 16, weight: .medium))
-                                            Text("Change Image")
-                                                .fontWeight(.medium)
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
-                                        .background(Color(.secondarySystemBackground))
-                                        .foregroundStyle(.primary)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                            // Action buttons
+                            HStack(spacing: 12) {
+                                Button(action: {
+                                    showingBackgroundImagePicker = true
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "photo.badge.plus")
+                                            .font(.system(size: 16, weight: .medium))
+                                        Text(kioskStore.backgroundImage == nil ? "Add Image" : "Change Image")
+                                            .fontWeight(.medium)
                                     }
-                                    
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(Color(.secondarySystemBackground))
+                                    .foregroundStyle(.primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                
+                                if kioskStore.backgroundImage != nil {
                                     Button(action: {
                                         withAnimation(.easeInOut(duration: 0.2)) {
                                             kioskStore.backgroundImage = nil
@@ -230,18 +190,12 @@ struct HomePageSettingsView: View {
             textVerticalFineTuning = kioskStore.textVerticalFineTuning
             headlineTextSize = kioskStore.headlineTextSize
             subtextTextSize = kioskStore.subtextTextSize
-            backgroundImageZoom = kioskStore.backgroundImageZoom
-            backgroundImagePanX = kioskStore.backgroundImagePanX // 🆕 LOAD PAN X
-            backgroundImagePanY = kioskStore.backgroundImagePanY // 🆕 LOAD PAN Y
             
             // Store original values for change detection
             originalTextVerticalPosition = kioskStore.textVerticalPosition
             originalTextVerticalFineTuning = kioskStore.textVerticalFineTuning
             originalHeadlineTextSize = kioskStore.headlineTextSize
             originalSubtextTextSize = kioskStore.subtextTextSize
-            originalBackgroundImageZoom = kioskStore.backgroundImageZoom
-            originalBackgroundImagePanX = kioskStore.backgroundImagePanX // 🆕 STORE ORIGINAL PAN X
-            originalBackgroundImagePanY = kioskStore.backgroundImagePanY // 🆕 STORE ORIGINAL PAN Y
         }
         .sheet(isPresented: $showingBackgroundImagePicker) {
             ImagePicker(selectedImage: $kioskStore.backgroundImage, isPresented: $showingBackgroundImagePicker)
@@ -266,32 +220,9 @@ struct HomePageSettingsView: View {
             },
             alignment: .top
         )
-        .fullScreenCover(isPresented: $showFullScreenPreview) {
-            FullScreenPreviewView(
-                backgroundImage: kioskStore.backgroundImage,
-                logoImage: nil,
-                headline: headline.isEmpty ? "Tap to Donate" : headline,
-                subtext: subtext.isEmpty ? "" : subtext,
-                textVerticalPosition: textVerticalPosition,
-                textVerticalFineTuning: textVerticalFineTuning,
-                headlineTextSize: headlineTextSize,
-                subtextTextSize: subtextTextSize,
-                backgroundImageZoom: $backgroundImageZoom,
-                onZoomChange: { newZoom in
-                    backgroundImageZoom = newZoom
-                    scheduleAutoSave()
-                },
-                onPanChange: { newPanX, newPanY in // 🆕 ADD PAN CALLBACK
-                    backgroundImagePanX = newPanX
-                    backgroundImagePanY = newPanY
-                    scheduleAutoSave()
-                },
-                isPresented: $showFullScreenPreview
-            )
-        }
     }
     
-    // MARK: - Preview Calculation Methods - FIXED
+    // MARK: - Preview Calculation Methods
     
     private func calculateTextVerticalPosition(in size: CGSize) -> CGFloat {
         let basePosition: CGFloat
@@ -305,8 +236,7 @@ struct HomePageSettingsView: View {
             basePosition = size.height * 0.75
         }
         
-        // FIXED: Apply fine tuning correctly (+ not -)
-        // Scale down for preview proportionally
+        // Apply fine tuning correctly
         let scaledFineTuning = textVerticalFineTuning * (size.height / UIScreen.main.bounds.height)
         return basePosition + scaledFineTuning
     }
@@ -332,10 +262,7 @@ struct HomePageSettingsView: View {
         return textVerticalPosition != originalTextVerticalPosition ||
         textVerticalFineTuning != originalTextVerticalFineTuning ||
         headlineTextSize != originalHeadlineTextSize ||
-        subtextTextSize != originalSubtextTextSize ||
-        backgroundImageZoom != originalBackgroundImageZoom ||
-        backgroundImagePanX != originalBackgroundImagePanX || // 🆕 ADD PAN X CHECK
-        backgroundImagePanY != originalBackgroundImagePanY    // 🆕 ADD PAN Y CHECK
+        subtextTextSize != originalSubtextTextSize
     }
     
     private func saveLayoutSettings() {
@@ -343,21 +270,14 @@ struct HomePageSettingsView: View {
         kioskStore.textVerticalFineTuning = textVerticalFineTuning
         kioskStore.headlineTextSize = headlineTextSize
         kioskStore.subtextTextSize = subtextTextSize
-        kioskStore.backgroundImageZoom = backgroundImageZoom
-        kioskStore.backgroundImagePanX = backgroundImagePanX // 🆕 SAVE PAN X
-        kioskStore.backgroundImagePanY = backgroundImagePanY // 🆕 SAVE PAN Y
         
         kioskStore.saveSettings()
-        
         
         // Update original values after saving
         originalTextVerticalPosition = textVerticalPosition
         originalTextVerticalFineTuning = textVerticalFineTuning
         originalHeadlineTextSize = headlineTextSize
         originalSubtextTextSize = subtextTextSize
-        originalBackgroundImageZoom = backgroundImageZoom
-        originalBackgroundImagePanX = backgroundImagePanX // 🆕 UPDATE ORIGINAL PAN X
-        originalBackgroundImagePanY = backgroundImagePanY // 🆕 UPDATE ORIGINAL PAN Y
         
         showLayoutSaveToast = true
     }
@@ -367,11 +287,7 @@ struct HomePageSettingsView: View {
         textVerticalFineTuning = 0.0
         headlineTextSize = KioskLayoutConstants.defaultHeadlineSize
         subtextTextSize = KioskLayoutConstants.defaultSubtextSize
-        backgroundImageZoom = 1.0
-        backgroundImagePanX = 0.0 // 🆕 RESET PAN X
-        backgroundImagePanY = 0.0 // 🆕 RESET PAN Y
     }
-    
     
     // MARK: - Auto-Save Functions
     
@@ -389,14 +305,11 @@ struct HomePageSettingsView: View {
         kioskStore.headline = headline
         kioskStore.subtext = subtext
         kioskStore.homePageEnabled = homePageEnabled
-        kioskStore.backgroundImageZoom = backgroundImageZoom
-        kioskStore.backgroundImagePanX = backgroundImagePanX // 🆕 AUTO-SAVE PAN X
-        kioskStore.backgroundImagePanY = backgroundImagePanY // 🆕 AUTO-SAVE PAN Y
         
         kioskStore.saveSettings()
     }
     
-    // MARK: - Preview Content Component - FIXED
+    // MARK: - Preview Content Component
     
     struct PreviewContent: View {
         let backgroundImage: UIImage?
@@ -440,7 +353,7 @@ struct HomePageSettingsView: View {
                                         .fontWeight(.semibold)
                                         .foregroundStyle(.primary)
                                     
-                                    Text("Tap to select from your photos")
+                                    Text("Tap below to select from your photos")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                 }
@@ -486,7 +399,7 @@ struct HomePageSettingsView: View {
             }
         }
         
-        // FIXED: Consistent positioning calculation
+        // Consistent positioning calculation
         private func calculateTextVerticalPosition(in size: CGSize) -> CGFloat {
             let basePosition: CGFloat
             
@@ -499,8 +412,7 @@ struct HomePageSettingsView: View {
                 basePosition = size.height * 0.75
             }
             
-            // FIXED: Apply fine tuning correctly (+ not -)
-            // Scale proportionally to preview size
+            // Apply fine tuning correctly
             let scaledFineTuning = textVerticalFineTuning * (size.height / UIScreen.main.bounds.height)
             return basePosition + scaledFineTuning
         }
@@ -511,226 +423,7 @@ struct HomePageSettingsView: View {
         }
     }
     
-    // MARK: - Full Screen Preview - FIXED with Proper Margins
-
-    struct FullScreenPreviewView: View {
-        let backgroundImage: UIImage?
-        let logoImage: UIImage?
-        let headline: String
-        let subtext: String
-        let textVerticalPosition: KioskLayoutConstants.VerticalTextPosition
-        let textVerticalFineTuning: Double
-        let headlineTextSize: Double
-        let subtextTextSize: Double
-        @Binding var backgroundImageZoom: Double
-        let onZoomChange: (Double) -> Void
-        let onPanChange: (Double, Double) -> Void
-        @Binding var isPresented: Bool
-        
-        // Zoom and pan state
-        @GestureState private var magnification: CGFloat = 1.0
-        @GestureState private var panOffset: CGSize = .zero
-        @State private var currentZoom: CGFloat = 1.0
-        @State private var currentPan: CGSize = .zero
-        
-        var body: some View {
-            GeometryReader { geometry in
-                ZStack {
-                    // Full screen background with zoom and pan
-                    if let backgroundImage = backgroundImage {
-                        Image(uiImage: backgroundImage)
-                            .resizable()
-                            .scaledToFill()
-                            .scaleEffect(currentZoom * magnification)
-                            .offset(x: currentPan.width + panOffset.width, y: currentPan.height + panOffset.height)
-                            .ignoresSafeArea()
-                            .gesture(
-                                // Combined zoom and pan gesture
-                                SimultaneousGesture(
-                                    MagnificationGesture()
-                                        .updating($magnification) { value, state, _ in
-                                            state = value
-                                        }
-                                        .onEnded { value in
-                                            let newZoom = currentZoom * value
-                                            // Limit zoom range
-                                            currentZoom = min(max(newZoom, 0.5), 3.0)
-                                            backgroundImageZoom = Double(currentZoom)
-                                            onZoomChange(Double(currentZoom))
-                                        },
-                                    
-                                    DragGesture()
-                                        .updating($panOffset) { value, state, _ in
-                                            state = value.translation
-                                        }
-                                        .onEnded { value in
-                                            currentPan.width += value.translation.width
-                                            currentPan.height += value.translation.height
-                                            
-                                            onPanChange(Double(currentPan.width), Double(currentPan.height))
-                                        }
-                                )
-                            )
-                    } else {
-                        // Default gradient background
-                        LinearGradient(
-                            colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.3)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .ignoresSafeArea()
-                    }
-                    
-                    // Dark overlay
-                    Color.black.opacity(0.4)
-                        .ignoresSafeArea()
-                    
-                    // Content positioned exactly like the real HomeView
-                    VStack(spacing: calculateFullScreenTextSpacing()) {
-                        Text(headline)
-                            .font(.system(size: headlineTextSize, weight: .bold))
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-                            .shadow(radius: 10)
-                        
-                        if !subtext.isEmpty {
-                            Text(subtext)
-                                .font(.system(size: subtextTextSize))
-                                .foregroundColor(.white.opacity(0.9))
-                                .multilineTextAlignment(.center)
-                                .shadow(radius: 5)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 40)
-                    .position(
-                        x: geometry.size.width / 2,
-                        y: calculateFullScreenTextVerticalPosition(in: geometry.size)
-                    )
-                    
-                    // FIXED: Zoom controls (bottom left) - Simple positioning
-                    VStack {
-                        Spacer()
-                        
-                        HStack {
-                            VStack(spacing: 8) {
-                                // Reset zoom button
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        currentZoom = 1.0
-                                        currentPan = .zero
-                                        backgroundImageZoom = 1.0
-                                        onZoomChange(1.0)
-                                        onPanChange(0.0, 0.0)
-                                    }
-                                }) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(.ultraThinMaterial)
-                                            .frame(width: 44, height: 44)
-                                        
-                                        Image(systemName: "arrow.clockwise")
-                                            .font(.system(size: 18, weight: .semibold))
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                                
-                                // Zoom level indicator
-                                Text("\(Int(backgroundImageZoom * 100))%")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Capsule())
-                            }
-                            .padding(.leading, 16)
-                            
-                            Spacer()
-                        }
-                        .padding(.bottom, 50)
-                    }
-                    
-                    // FIXED: Close button (top right) - Simple positioning
-                    VStack {
-                        HStack {
-                            Spacer()
-                            
-                            Button(action: {
-                                isPresented = false
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .frame(width: 44, height: 44)
-                                    
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .padding(.trailing, 16)
-                        }
-                        .padding(.top, 50)
-                        
-                        Spacer()
-                    }
-                    
-                    // FIXED: Instructions overlay (top center) - Simple positioning
-                    VStack {
-                        HStack {
-                            Spacer()
-                            
-                            VStack(spacing: 4) {
-                                Text("Pinch to zoom • Drag to pan")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Capsule())
-                                    .opacity(backgroundImage != nil ? 1.0 : 0.0)
-                            }
-                            
-                            Spacer()
-                        }
-                        .padding(.top, 100)
-                        
-                        Spacer()
-                    }
-                }
-            }
-            .statusBarHidden()
-            .onAppear {
-                // Initialize from persistent state
-                currentZoom = CGFloat(backgroundImageZoom)
-                // Load pan from KioskStore if you have pan properties there
-            }
-        }
-        
-        private func calculateFullScreenTextVerticalPosition(in size: CGSize) -> CGFloat {
-            let basePosition: CGFloat
-            
-            switch textVerticalPosition {
-            case .top:
-                basePosition = size.height * 0.25
-            case .center:
-                basePosition = size.height * 0.5
-            case .bottom:
-                basePosition = size.height * 0.75
-            }
-            
-            return basePosition + textVerticalFineTuning
-        }
-        
-        private func calculateFullScreenTextSpacing() -> CGFloat {
-            return (headlineTextSize + subtextTextSize) * 0.15
-        }
-    }
-    
-    // MARK: - Collapsible Layout Section - FIXED
+    // MARK: - Collapsible Layout Section
     
     struct CollapsibleLayoutSection: View {
         @Binding var isExpanded: Bool
@@ -757,7 +450,7 @@ struct HomePageSettingsView: View {
         @State private var previewHeadlineTextSize: Double = 90.0
         @State private var previewSubtextTextSize: Double = 30.0
         
-        // FIXED: Store slider frame for consistent positioning
+        // Store slider frame for consistent positioning
         @State private var positionSliderFrame: CGRect = .zero
         @State private var headlineSliderFrame: CGRect = .zero
         @State private var subtextSliderFrame: CGRect = .zero
@@ -829,7 +522,7 @@ struct HomePageSettingsView: View {
                                     }
                                 }
                                 
-                                // FIXED: Fine-tuning slider with proper frame tracking
+                                // Fine-tuning slider with proper frame tracking
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Fine Adjustment")
                                         .font(.subheadline)
@@ -857,7 +550,6 @@ struct HomePageSettingsView: View {
                                             }
                                         }
                                         .background(
-                                            // FIXED: Capture slider frame reliably
                                             GeometryReader { geometry in
                                                 Color.clear
                                                     .onAppear {
@@ -887,7 +579,7 @@ struct HomePageSettingsView: View {
                                 SectionHeader(title: "Text Size", subtitle: "Adjust the size of your headline and supporting text")
                                 
                                 VStack(spacing: 16) {
-                                    // FIXED: Headline size with proper frame tracking
+                                    // Headline size with proper frame tracking
                                     VStack(alignment: .leading, spacing: 8) {
                                         HStack {
                                             Text("Headline Size")
@@ -918,7 +610,6 @@ struct HomePageSettingsView: View {
                                             }
                                         }
                                         .background(
-                                            // FIXED: Capture slider frame reliably
                                             GeometryReader { geometry in
                                                 Color.clear
                                                     .onAppear {
@@ -931,7 +622,7 @@ struct HomePageSettingsView: View {
                                         )
                                     }
                                     
-                                    // FIXED: Subtext size with proper frame tracking
+                                    // Subtext size with proper frame tracking
                                     VStack(alignment: .leading, spacing: 8) {
                                         HStack {
                                             Text("Supporting Text Size")
@@ -962,7 +653,6 @@ struct HomePageSettingsView: View {
                                             }
                                         }
                                         .background(
-                                            // FIXED: Capture slider frame reliably
                                             GeometryReader { geometry in
                                                 Color.clear
                                                     .onAppear {
@@ -1016,7 +706,7 @@ struct HomePageSettingsView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
                 
-                // FIXED: Live preview overlay positioned consistently above slider
+                // Live preview overlay positioned consistently above slider
                 if isAdjustingPosition || isAdjustingHeadlineSize || isAdjustingSubtextSize {
                     LivePreviewOverlay(
                         backgroundImage: backgroundImage,
@@ -1029,7 +719,7 @@ struct HomePageSettingsView: View {
                     )
                     .position(
                         x: getActiveSliderCenter().x,
-                        y: getActiveSliderCenter().y - 100 // Increased from 80 to 100 for larger preview
+                        y: getActiveSliderCenter().y - 100
                     )
                     .transition(.opacity.combined(with: .scale))
                     .animation(.easeInOut(duration: 0.2), value: isAdjustingPosition || isAdjustingHeadlineSize || isAdjustingSubtextSize)
@@ -1037,7 +727,7 @@ struct HomePageSettingsView: View {
             }
         }
         
-        // FIXED: Get the center position of the currently active slider
+        // Get the center position of the currently active slider
         private func getActiveSliderCenter() -> CGPoint {
             let activeFrame: CGRect
             
@@ -1058,7 +748,7 @@ struct HomePageSettingsView: View {
         }
     }
     
-    // MARK: - Live Preview Overlay - FIXED & ENLARGED
+    // MARK: - Live Preview Overlay
     
     struct LivePreviewOverlay: View {
         let backgroundImage: UIImage?
@@ -1092,231 +782,51 @@ struct HomePageSettingsView: View {
                 }
                 
                 // Text overlay - Larger text for better readability
-                VStack(spacing: 4) {
-                    Text(headline)
-                        .font(.system(size: max(8, headlineTextSize * 0.18), weight: .bold))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .shadow(radius: 2)
-                    
-                    if !subtext.isEmpty {
-                        Text(subtext)
-                            .font(.system(size: max(6, subtextTextSize * 0.18)))
-                            .foregroundColor(.white.opacity(0.9))
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .shadow(radius: 1)
+                                VStack(spacing: 4) {
+                                    Text(headline.isEmpty ? "Sample Headline" : headline)
+                                        .font(.system(size: max(8, headlineTextSize * 0.18), weight: .bold))
+                                        .foregroundColor(.white)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .shadow(radius: 2)
+                                    
+                                    if !subtext.isEmpty {
+                                        Text(subtext)
+                                            .font(.system(size: max(6, subtextTextSize * 0.18)))
+                                            .foregroundColor(.white.opacity(0.9))
+                                            .multilineTextAlignment(.center)
+                                            .lineLimit(2)
+                                            .shadow(radius: 1)
+                                    }
+                                }
+                                .frame(width: 160, height: 100)
+                                .offset(y: calculateTextOffset())
+                            }
+                            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                        }
+                        
+                        // Consistent text offset calculation with larger range
+                        private func calculateTextOffset() -> CGFloat {
+                            let range: CGFloat = 25 // Increased movement range for larger preview
+                            
+                            let baseOffset: CGFloat
+                            switch textVerticalPosition {
+                            case .top:
+                                baseOffset = -range * 0.7
+                            case .center:
+                                baseOffset = 0
+                            case .bottom:
+                                baseOffset = range * 0.7
+                            }
+                            
+                            // Apply fine tuning correctly
+                            let fineTuningOffset = (textVerticalFineTuning * 0.3)
+                            
+                            return baseOffset + fineTuningOffset
+                        }
                     }
                 }
-                .frame(width: 160, height: 100)
-                .offset(y: calculateTextOffset())
-            }
-            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-        }
-        
-        // FIXED: Consistent text offset calculation with larger range
-        private func calculateTextOffset() -> CGFloat {
-            let range: CGFloat = 25 // Increased movement range for larger preview
-            
-            let baseOffset: CGFloat
-            switch textVerticalPosition {
-            case .top:
-                baseOffset = -range * 0.7
-            case .center:
-                baseOffset = 0
-            case .bottom:
-                baseOffset = range * 0.7
-            }
-            
-            // FIXED: Apply fine tuning correctly (+ not -)
-            let fineTuningOffset = (textVerticalFineTuning * 0.3)
-            
-            return baseOffset + fineTuningOffset
-        }
-    }
-    
-   
-    
- 
-    
-    struct HomePageSettingsView_Previews: PreviewProvider {
-        static var previews: some View {
-            HomePageSettingsView()
-                .environmentObject(KioskStore())
-        }
-    }
-}
-// MARK: - Supporting Views
-
-struct SettingsCard<Content: View>: View {
-    let title: String
-    let icon: String
-    let content: Content
-    
-    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.icon = icon
-        self.content = content()
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.blue.opacity(0.1))
-                        .frame(width: 32, height: 32)
-                    
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.blue)
-                }
-                
-                Text(title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                
-                Spacer()
-            }
-            
-            content
-        }
-        .padding(24)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-    }
-}
-
-struct SectionHeader: View {
-    let title: String
-    let subtitle: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-            
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-struct ModernTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .padding(12)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-}
-
-struct PositionOptionCard: View {
-    let position: KioskLayoutConstants.VerticalTextPosition
-    let isSelected: Bool
-    let onSelect: () -> Void
-    
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .stroke(isSelected ? Color.blue : Color(.separator), lineWidth: 2)
-                        .frame(width: 24, height: 24)
-                    
-                    if isSelected {
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 12, height: 12)
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(position.displayName)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-                    
-                    Text(position.description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-                
-                // Visual position indicator
-                VStack(spacing: 2) {
-                    Circle()
-                        .fill(position == .top ? Color.blue : Color(.systemGray5))
-                        .frame(width: 6, height: 6)
-                    
-                    Circle()
-                        .fill(position == .center ? Color.blue : Color(.systemGray5))
-                        .frame(width: 6, height: 6)
-                    
-                    Circle()
-                        .fill(position == .bottom ? Color.blue : Color(.systemGray5))
-                        .frame(width: 6, height: 6)
-                }
-                .padding(.trailing, 8)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.blue.opacity(0.05) : Color(.secondarySystemBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
-struct DestructiveButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline)
-            .fontWeight(.medium)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color.red.opacity(0.1))
-            .foregroundStyle(.red)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-struct ToastNotification: View {
-    let message: String
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-            
-            Text(message)
-                .font(.subheadline)
-                .fontWeight(.medium)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-        )
-        .padding(.top, 60)
-    }
-}
-// Keep existing ImagePicker implementation
+// Add this at the bottom of your file, after the ToastNotification struct
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
     @Binding var isPresented: Bool

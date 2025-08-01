@@ -75,11 +75,11 @@ class SquareCatalogService: ObservableObject {
         isLoading = true
         error = nil
         
-        guard let url = URL(string: "\(SquareConfig.backendBaseURL)/api/square/catalog/list?organization_id=\(authService.organizationId)") else {
-            error = "Invalid request URL"
-            isLoading = false
-            return
-        }
+        guard let url = URL(string: "\(SquareConfig.backendBaseURL)/api/square/catalog/list?organization_id=\(authService.organizationId)&device_id=\(authService.getCurrentDeviceId())") else {
+                error = "Invalid request URL"
+                isLoading = false
+                return
+            }
         
         print("📋 Fetching catalog items from: \(url)")
         
@@ -137,6 +137,7 @@ class SquareCatalogService: ObservableObject {
         
         let requestBody: [String: Any] = [
             "organization_id": authService.organizationId,
+            "device_id": authService.getCurrentDeviceId(),
             "amounts": amounts,
             "parent_item_id": parentItemId as Any,
             "parent_item_name": "Donations",
@@ -336,6 +337,7 @@ class SquareCatalogService: ObservableObject {
         
         let requestBody: [String: Any] = [
             "organization_id": authService.organizationId,
+            "device_id": authService.getCurrentDeviceId(),
             "amounts": amounts,
             "parent_item_name": "Donations",
             "parent_item_description": "Donation preset amounts",
@@ -411,6 +413,7 @@ class SquareCatalogService: ObservableObject {
         
         let requestBody: [String: Any] = [
             "organization_id": authService.organizationId,
+            "device_id": authService.getCurrentDeviceId(),
             "object_id": id
         ]
         
@@ -504,6 +507,7 @@ class SquareCatalogService: ObservableObject {
         
         let requestBody: [String: Any] = [
             "organization_id": authService.organizationId,
+            "device_id": authService.getCurrentDeviceId(),
             "line_items": [lineItem],
             "reference_id": "donation_\(Int(Date().timeIntervalSince1970))",
             "state": "OPEN"

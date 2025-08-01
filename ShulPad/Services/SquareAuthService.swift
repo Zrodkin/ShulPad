@@ -3,7 +3,14 @@ import SwiftUI
 import SquareMobilePaymentsSDK
 
 class SquareAuthService: ObservableObject {
-    @Published var isAuthenticated = false
+    @Published var isAuthenticated = false {
+        willSet {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .squareAuthenticationStatusChanged, object: nil)
+                print("📢 Auth status will change to: \(newValue). Posting notification.")
+            }
+        }
+    }
     @Published var isAuthenticating = false
     @Published var authError: String? = nil
     
@@ -56,6 +63,8 @@ class SquareAuthService: ObservableObject {
         
         return shortDeviceId
     }
+    
+   
     
     var accessToken: String? {
         get { UserDefaults.standard.string(forKey: accessTokenKey) }
