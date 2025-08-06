@@ -157,10 +157,41 @@ struct PresetAmountsView: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
-                }
-            }
-        }
+                    
+                    // 🆕 Processing Fee Section - MOVED INSIDE ScrollView
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Processing Fees")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Add processing fees to donations")
+                                    .font(.subheadline)
+                                
+                                Text("Adds 2.6% + 15¢ to cover transaction costs")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: $kioskStore.processingFeeEnabled)
+                                .toggleStyle(SwitchToggleStyle(tint: .blue))
+                                .onChange(of: kioskStore.processingFeeEnabled) { _, _ in
+                                    scheduleAutoSave()
+                                }
+                        }
+                        .padding(16)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24) // Add bottom padding for the last section
+                    
+                } // Closing LazyVStack
+            } // Closing ScrollView
+        } // Closing main VStack
         .background(Color(.systemGroupedBackground))
         .onAppear {
             loadSettings()
@@ -184,13 +215,11 @@ struct PresetAmountsView: View {
                     autoSaveSettings()
                 },
                 onError: { message in
-                    // Handle error silently or with a different approach
                     print("Error adding amount: \(message)")
                 }
             )
             .presentationDetents([.height(300)])
         }
-     
     }
     
     // MARK: - Functions

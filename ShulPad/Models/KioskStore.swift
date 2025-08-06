@@ -27,6 +27,9 @@ class KioskStore: ObservableObject {
     @Published var maxAmount: String = "100000"
     @Published var timeoutDuration: String = "15"
     @Published var homePageEnabled: Bool = true
+    @Published var processingFeeEnabled: Bool = false
+    @Published var processingFeePercentage: Double = 2.6
+    @Published var processingFeeFixedCents: Int = 15
     
     @Published var textVerticalPosition: KioskLayoutConstants.VerticalTextPosition = .center
     @Published var textVerticalFineTuning: Double = 0.0  // Range: -50 to +50
@@ -201,6 +204,17 @@ class KioskStore: ObservableObject {
             ]
             saveToUserDefaults() // Save the defaults
         }
+        
+        // Load processing fee settings
+           self.processingFeeEnabled = UserDefaults.standard.bool(forKey: "kioskProcessingFeeEnabled")
+           
+           // Load percentage with fallback to default
+           let savedPercentage = UserDefaults.standard.double(forKey: "kioskProcessingFeePercentage")
+           self.processingFeePercentage = savedPercentage > 0 ? savedPercentage : 2.6
+           
+           // Load fixed cents with fallback to default
+           let savedFixedCents = UserDefaults.standard.integer(forKey: "kioskProcessingFeeFixedCents")
+           self.processingFeeFixedCents = savedFixedCents > 0 ? savedFixedCents : 15
     }
 
 
@@ -242,6 +256,11 @@ class KioskStore: ObservableObject {
         UserDefaults.standard.set(backgroundImageZoom, forKey: "kioskBackgroundImageZoom")
         UserDefaults.standard.set(backgroundImagePanX, forKey: "kioskBackgroundImagePanX")
         UserDefaults.standard.set(backgroundImagePanY, forKey: "kioskBackgroundImagePanY")
+        
+        // Save processing fee settings
+           UserDefaults.standard.set(processingFeeEnabled, forKey: "kioskProcessingFeeEnabled")
+           UserDefaults.standard.set(processingFeePercentage, forKey: "kioskProcessingFeePercentage")
+           UserDefaults.standard.set(processingFeeFixedCents, forKey: "kioskProcessingFeeFixedCents")
                
         
         // Save logo image or remove it if nil
@@ -550,14 +569,17 @@ class KioskStore: ObservableObject {
         var requestBody: [String: Any]
         
         if isCustomAmount {
-            // FIXED: Use new custom amount parameters
-            requestBody = [
-                "organization_id": SquareConfig.organizationId,
-                "is_custom_amount": true,
-                "custom_amount": amount,
-                "reference_id": "custom_donation_\(Int(Date().timeIntervalSince1970))",
-                "state": "OPEN"
-            ]
+             // UPDATED: Include processing fee parameters for custom amounts
+             requestBody = [
+                 "organization_id": SquareConfig.organizationId,
+                 "is_custom_amount": true,
+                 "custom_amount": amount,
+                 "reference_id": "custom_donation_\(Int(Date().timeIntervalSince1970))",
+                 "state": "OPEN",
+                 "processing_fee_enabled": processingFeeEnabled,
+                 "processing_fee_percentage": processingFeePercentage,
+                 "processing_fee_fixed_cents": processingFeeFixedCents
+             ]
             
             print("📝 Creating custom amount order request")
             print("🔧 Using new backend custom amount flow")
@@ -595,11 +617,14 @@ class KioskStore: ObservableObject {
             }
             
             requestBody = [
-                "organization_id": SquareConfig.organizationId,
-                "line_items": [lineItem],
-                "reference_id": "preset_donation_\(Int(Date().timeIntervalSince1970))",
-                "state": "OPEN"
-            ]
+                      "organization_id": SquareConfig.organizationId,
+                      "line_items": [lineItem],
+                      "reference_id": "preset_donation_\(Int(Date().timeIntervalSince1970))",
+                      "state": "OPEN",
+                      "processing_fee_enabled": processingFeeEnabled,
+                      "processing_fee_percentage": processingFeePercentage,
+                      "processing_fee_fixed_cents": processingFeeFixedCents
+                  ]
             
             print("📝 Creating preset amount order request")
         }
@@ -733,4 +758,19 @@ class KioskStore: ObservableObject {
             }
         }.resume()
     }
+    // MARK: - Processing Fee Calculation Helper
+    func calculateProcessingFee(for amount: Double) -> Double {
+        guard processingFeeEnabled else { return 0 }
+        
+        let percentageFee = amount * (processingFeePercentage / 100.0)
+        let fixedFee = Double(processingFeeFixedCents) / 100.0
+        
+        return percentageFee + fixedFee
+    }
+
+    func calculateTotalWithFees(for amount: Double) -> Double {
+        return amount + calculateProcessingFee(for: amount)
+    }
 }
+
+
