@@ -38,12 +38,12 @@ struct DonationSelectionView: View {
             backgroundImageView
             
             Color.black.opacity(0.55)
-                .edgesIgnoringSafeArea(.all)
+                .ignoresSafeArea()
             
             // CONSISTENT: Same layout structure as HomeView
             VStack(spacing: 0) {
                 Spacer()
-                    .frame(height: KioskLayoutConstants.topContentOffset)
+                    .frame(height: KioskLayoutConstants.topContentOffset + 40)
                 
                 // Title
                 Text("Donation Amount")
@@ -97,15 +97,18 @@ struct DonationSelectionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: {
-                    timeoutTimer?.invalidate()
-                    dismiss()
-                }) {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(.white)
-                        .padding(8)
-                        .background(Circle().fill(Color.white.opacity(0.2)))
+            // Only show the back button if home page is enabled
+            if kioskStore.homePageEnabled {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        timeoutTimer?.invalidate()
+                        dismiss()
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.white)
+                            .padding(8)
+                            .background(Circle().fill(Color.white.opacity(0.2)))
+                    }
                 }
             }
         }
@@ -162,13 +165,13 @@ struct DonationSelectionView: View {
                 Image(uiImage: backgroundImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .edgesIgnoringSafeArea(.all)
+                    .ignoresSafeArea()
                     .blur(radius: 5)
             } else {
                 Image("logoImage")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .edgesIgnoringSafeArea(.all)
+                    .ignoresSafeArea()
                     .blur(radius: 5)
             }
         }

@@ -17,7 +17,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         
         return true
     }
-  
+    
     // MARK: - URL Handling for Deep Links
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
         print("📱 AppDelegate received URL: \(url.absoluteString)")
@@ -37,10 +37,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         switch url.host {
         case "oauth-complete":
             return handleOAuthCallback(url)
-        case "subscription":
+        case "subscription-success", "subscription-cancelled", "subscription-manage":
             return handleSubscriptionDeepLink(url)
         default:
-            // For backwards compatibility, handle any shulpad:// URL as potential OAuth
+            // For backwards compatibility
             print("🔄 Handling as legacy OAuth callback: \(url.host ?? "none")")
             return handleOAuthCallback(url)
         }
@@ -95,30 +95,28 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     private func handleSubscriptionDeepLink(_ url: URL) -> Bool {
         print("💳 Processing subscription deep link: \(url)")
         
-        let pathComponents = url.pathComponents
-        guard pathComponents.count > 1 else {
-            print("⚠️ Invalid subscription deep link path")
+        // Check the host, not path components
+        guard let host = url.host else {
+            print("⚠️ Invalid subscription deep link")
             return false
         }
         
-        let action = pathComponents[1]
-        print("💳 Subscription action: \(action)")
-        
-        switch action {
-        case "success":
+        switch host {
+        case "subscription-success":
             handleSubscriptionSuccess(url)
             return true
             
-        case "cancelled":
+        case "subscription-cancelled":
             handleSubscriptionCancelled(url)
             return true
             
-        case "manage":
+        case "subscription-manage":
             handleSubscriptionManage(url)
             return true
             
         default:
-            print("⚠️ Unknown subscription action: \(action)")
+            print("⚠️ Unknown subscription action: \(host)")
+            print("⚠️ Unknown subscription action: \(host)")
             return false
         }
     }
@@ -128,46 +126,33 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     private func handleSubscriptionSuccess(_ url: URL) {
         print("🎉 Subscription activated successfully!")
         
-        // Extract subscription ID and merchant ID
+        // Extract session_id if provided
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let subscriptionId = components?.queryItems?.first(where: { $0.name == "subscription_id" })?.value
-        let merchantId = components?.queryItems?.first(where: { $0.name == "merchant_id" })?.value
-
-        print("📋 Subscription Success Parameters:")
-        print("  - Subscription ID: \(subscriptionId ?? "none")")
-        print("  - Merchant ID: \(merchantId ?? "none")")  // ✅ CHANGE THIS LINE
+        let sessionId = components?.queryItems?.first(where: { $0.name == "session_id" })?.value
+        
+        print("📋 Subscription Success - Session ID: \(sessionId ?? "none")")
         
         DispatchQueue.main.async {
             // Post notification to refresh subscription status
             NotificationCenter.default.post(
-                name: .subscriptionActivated,
+                name: .subscriptionStatusChanged,
                 object: nil,
-                userInfo: [
-                    "subscription_id": subscriptionId ?? "",
-                    "merchant_id": merchantId ?? ""  // ✅ CHANGE THESE LINES
-                ]
+                userInfo: ["session_id": sessionId ?? ""]
             )
             
             // Show success message
-            self.showSubscriptionSuccessAlert(subscriptionId: subscriptionId)
+            self.showSubscriptionSuccessAlert()
         }
     }
     
     private func handleSubscriptionCancelled(_ url: URL) {
         print("🚪 User cancelled subscription checkout")
         
-        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let merchantId = components?.queryItems?.first(where: { $0.name == "merchant_id" })?.value
-
-        print("📋 Subscription Cancelled Parameters:")
-        print("  - Merchant ID: \(merchantId ?? "none")")  // ✅ CHANGE THIS LINE
-        
         DispatchQueue.main.async {
-            // Post notification that user cancelled (optional)
+            // Optionally refresh status even on cancel
             NotificationCenter.default.post(
-                name: .subscriptionCancelled,
-                object: nil,
-                userInfo: ["merchant_id": merchantId ?? ""]  // ✅ CHANGE THIS LINE
+                name: .subscriptionStatusChanged,
+                object: nil
             )
             
             print("ℹ️ User returned to app after cancelling subscription")
@@ -179,16 +164,16 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let merchantId = components?.queryItems?.first(where: { $0.name == "merchant_id" })?.value
-
+        
         print("📋 Subscription Management Parameters:")
-        print("  - Merchant ID: \(merchantId ?? "none")")  // ✅ CHANGE THIS LINE
+        print("  - Merchant ID: \(merchantId ?? "none")")
         
         DispatchQueue.main.async {
             // Refresh subscription status in case changes were made
             NotificationCenter.default.post(
                 name: .subscriptionStatusChanged,
                 object: nil,
-                userInfo: ["merchant_id": merchantId ?? ""]  // ✅ CHANGE THIS LINE
+                userInfo: ["merchant_id": merchantId ?? ""]
             )
             
             print("🔄 Refreshing subscription status after management")
@@ -197,7 +182,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     // MARK: - Helper Methods
     
-    private func showSubscriptionSuccessAlert(subscriptionId: String?) {
+    private func showSubscriptionSuccessAlert() {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first,
               let rootViewController = window.rootViewController else {

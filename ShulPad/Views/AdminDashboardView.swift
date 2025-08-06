@@ -13,7 +13,9 @@ struct AdminDashboardView: View {
     @EnvironmentObject private var squareAuthService: SquareAuthService
     @EnvironmentObject private var squarePaymentService: SquarePaymentService
     @EnvironmentObject private var squareReaderService: SquareReaderService
-    @EnvironmentObject private var subscriptionStore: SubscriptionStore
+    
+    // ✅ Keep this as a StateObject to manage the store's lifecycle.
+    @StateObject private var subscriptionStore = StripeSubscriptionStore()
     
     var body: some View {
         NavigationSplitView {
@@ -121,7 +123,7 @@ struct AdminDashboardView: View {
                 } else {
                     connectingFooter
                 }
-
+                
             }
             .background(Color(.systemBackground))
             .navigationBarHidden(true)
@@ -144,7 +146,7 @@ struct AdminDashboardView: View {
                             .environmentObject(squareAuthService)
                             .environmentObject(squareReaderService)
                     case "subscription":
-                        SubscriptionManagementView()
+                        StripeSubscriptionView()
                             .environmentObject(squareAuthService)
                     default:
                         EmptyDetailView()
@@ -182,21 +184,27 @@ struct AdminDashboardView: View {
                 }
             }
         )
-        // 🔧 FIX: Simplified the lifecycle methods.
         .onAppear {
-             // onAppear should trigger the checks.
+            // ✅ Only call the authentication check here.
+            // This is the trigger that will eventually enable the button.
             squareAuthService.checkAuthentication()
-            subscriptionStore.refreshSubscriptionStatus()
         }
+        // ✅ The onReceive handler is where we now manage the subscription check.
+        // It waits for a notification indicating Square is authenticated.
         .onReceive(NotificationCenter.default.publisher(for: .squareAuthenticationStatusChanged)) { _ in
-            // When auth changes, always refresh the subscription status as well.
-            subscriptionStore.refreshSubscriptionStatus()
+            // When auth changes, we can be sure the merchantId is available.
+            if let merchantId = squareAuthService.merchantId {
+                print("🔔 Square authentication status changed. Refreshing Stripe subscription.")
+                subscriptionStore.setOrganizationId(merchantId)
+                subscriptionStore.checkSubscriptionStatus()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LaunchKioskFromQuickSetup"))) { _ in
             print("🚀 Launching kiosk from quick setup")
             kioskStore.updateDonationViewModel(donationViewModel)
             isInAdminMode = false
         }
+        
     }
     
     // 🔧 FIX: Extracted the entire authenticated footer into its own computed property.
@@ -268,10 +276,10 @@ struct AdminDashboardView: View {
             actionButtons
         }
     }
-
+    
     // 🔧 FIX: Created a placeholder view for the initial connecting state.
     private var connectingFooter: some View {
-         VStack {
+        VStack {
             HStack {
                 ProgressView()
                     .padding(.trailing, 8)
@@ -314,8 +322,10 @@ struct AdminDashboardView: View {
                 .foregroundColor(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            // Button is no longer disabled
-        
+            // ✅ This is the correct way to disable and change opacity based on your Stripe subscription status.
+            .disabled(!subscriptionStore.canUseKiosk) // Check Stripe subscription
+            .opacity(subscriptionStore.canUseKiosk ? 1.0 : 0.6)
+            
             
             
             Button(action: {
@@ -350,25 +360,25 @@ struct AdminDashboardView: View {
     // MARK: - Logout Methods
     
     private func initiateLogoutProcess() {
-            print("🔄 Starting logout process...")
+        print("🔄 Starting logout process...")
+        
+        NotificationCenter.default.post(name: NSNotification.Name("ExplicitLogoutInitiated"), object: nil)
+        
+        DispatchQueue.main.async {
+            guard !self.isLoggingOut else {
+                print("⚠️ Already logging out, skipping duplicate request")
+                return
+            }
             
-            NotificationCenter.default.post(name: NSNotification.Name("ExplicitLogoutInitiated"), object: nil)
+            self.isLoggingOut = true
+            self.isProcessingLogout = true
             
-            DispatchQueue.main.async {
-                guard !self.isLoggingOut else {
-                    print("⚠️ Already logging out, skipping duplicate request")
-                    return
-                }
-                
-                self.isLoggingOut = true
-                self.isProcessingLogout = true
-                
-                Task {
-                    await self.performLogoutSequence()
-                }
+            Task {
+                await self.performLogoutSequence()
             }
         }
-        
+    }
+    
     @MainActor
     private func performLogoutSequence() async {
         print("🔄 Performing logout sequence...")
@@ -590,7 +600,7 @@ struct AdminDashboardView_Previews: PreviewProvider {
         let catalogService = SquareCatalogService(authService: authService)
         let paymentService = SquarePaymentService(authService: authService, catalogService: catalogService)
         let readerService = SquareReaderService(authService: authService)
-
+        
         return AdminDashboardView()
             .environmentObject(OrganizationStore())
             .environmentObject(KioskStore())

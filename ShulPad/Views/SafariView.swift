@@ -76,7 +76,19 @@ struct WebView: UIViewRepresentable {
                 // Handle your custom URL schemes
                 if url.scheme == "shulpad" {
                     print("🔄 Handling shulpad:// redirect")
-                    parent.dismiss()
+                    
+                    // ✅ IMPORTANT: Open the URL in the system so AppDelegate can handle it
+                    DispatchQueue.main.async {
+                        UIApplication.shared.open(url) { success in
+                            if success {
+                                print("✅ Successfully opened deep link: \(url.absoluteString)")
+                                self.parent.dismiss()
+                            } else {
+                                print("❌ Failed to open deep link: \(url.absoluteString)")
+                            }
+                        }
+                    }
+                    
                     decisionHandler(.cancel)
                     return
                 }

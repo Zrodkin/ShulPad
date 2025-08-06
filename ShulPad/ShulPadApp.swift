@@ -6,7 +6,7 @@ struct DonationPadApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     @StateObject private var authService = SquareAuthService()
-    @StateObject private var subscriptionStore = SubscriptionStore()
+    @StateObject private var subscriptionStore = StripeSubscriptionStore()
     @StateObject private var donationViewModel = DonationViewModel()
     @StateObject private var organizationStore = OrganizationStore()
     @StateObject private var kioskStore = KioskStore()
@@ -48,7 +48,10 @@ struct DonationPadApp: App {
                     }
                 }
                 .onOpenURL { url in
-                    // Handle deep links here if needed
+                    if url.host == "subscription-success" {
+                        // Immediately check subscription status
+                        subscriptionStore.checkSubscriptionStatus()
+                    }
                 }
         }
     }
@@ -62,9 +65,14 @@ struct DonationPadApp: App {
     }
     
     private func injectServices() {
-        // ✅ FIXED: Inject auth service after SwiftUI initialization
-        subscriptionStore.setAuthService(authService)
-        print("✅ Auth service injected into subscription store")
+        // ✅ FIXED: Set organization ID instead of auth service
+        // The subscription store needs the merchant ID as organization ID
+        if let merchantId = authService.merchantId {
+            subscriptionStore.setOrganizationId(merchantId)
+            print("✅ Organization ID set in subscription store: \(merchantId)")
+        } else {
+            print("⚠️ No merchant ID available yet for subscription store")
+        }
     }
     
     private func registerDefaultSettings() {
@@ -107,6 +115,11 @@ struct DonationPadApp: App {
         
         if authService.hasLocalTokens() {
             authService.checkAuthentication()
+            
+            // Set organization ID after authentication check
+            if let merchantId = authService.merchantId {
+                subscriptionStore.setOrganizationId(merchantId)
+            }
         }
     }
     

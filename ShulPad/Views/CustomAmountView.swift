@@ -40,18 +40,18 @@ struct UpdatedCustomAmountView: View {
                 Image(uiImage: backgroundImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .edgesIgnoringSafeArea(.all)
+                    .ignoresSafeArea()
                     .blur(radius: 5)
             } else {
                 Image("logoImage")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .edgesIgnoringSafeArea(.all)
+                    .ignoresSafeArea()
                     .blur(radius: 5)
             }
             
             Color.black.opacity(0.55)
-                .edgesIgnoringSafeArea(.all)
+                .ignoresSafeArea()
             
             VStack(spacing: 0) {
                 Spacer()

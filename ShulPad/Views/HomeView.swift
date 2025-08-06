@@ -7,19 +7,18 @@ struct HomeView: View {
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                homePageContent
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                navigateToDonation = true
-            }
-            .onAppear {
-                donationViewModel.resetDonation()
-            }
-            .navigationDestination(isPresented: $navigateToDonation) {
-                DonationSelectionView()
-            }
+            homePageContent
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    navigateToDonation = true
+                }
+                .onAppear {
+                    donationViewModel.resetDonation()
+                }
+                .navigationDestination(isPresented: $navigateToDonation) {
+                    DonationSelectionView()
+                }
         }
         .id("homeNavigation")
     }
@@ -69,7 +68,6 @@ struct HomeView: View {
                     y: calculateTextPosition(in: geometry.size)
                 )
             }
-            .ignoresSafeArea()
         }
     }
     
