@@ -290,6 +290,29 @@ class SquarePaymentService: NSObject, ObservableObject {
         return !readyReaders.isEmpty
     }
     
+    private func calculateTotalAmountWithFees(baseAmount: Double) -> Double {
+        guard let kioskStore = self.kioskStore,
+              kioskStore.processingFeeEnabled else {
+            return baseAmount // No fees, return original amount
+        }
+        
+        // Calculate the processing fee
+        let percentageFee = baseAmount * (kioskStore.processingFeePercentage / 100.0)
+        let fixedFee = Double(kioskStore.processingFeeFixedCents) / 100.0
+        let totalFee = percentageFee + fixedFee
+        
+        let totalAmount = baseAmount + totalFee
+        
+        print("💰 Fee Calculation:")
+        print("   Base Amount: $\(String(format: "%.2f", baseAmount))")
+        print("   Percentage Fee (\(kioskStore.processingFeePercentage)%): $\(String(format: "%.2f", percentageFee))")
+        print("   Fixed Fee: $\(String(format: "%.2f", fixedFee))")
+        print("   Total Fee: $\(String(format: "%.2f", totalFee))")
+        print("   Total to Charge: $\(String(format: "%.2f", totalAmount))")
+        
+        return totalAmount
+    }
+    
     private func createOrderThenProcessPayment(
         amount: Double,
         isCustomAmount: Bool,
@@ -344,7 +367,9 @@ class SquarePaymentService: NSObject, ObservableObject {
             self?.currentOrderId = orderId
         }
         
-        let amountInCents = UInt(amount * 100)
+        let totalAmount = calculateTotalAmountWithFees(baseAmount: amount)
+          let amountInCents = UInt(totalAmount * 100)
+        
         
         guard let presentedVC = getTopViewController() else {
             DispatchQueue.main.async { [weak self] in
