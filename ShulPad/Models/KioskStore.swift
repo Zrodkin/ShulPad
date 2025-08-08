@@ -289,12 +289,14 @@ class KioskStore: ObservableObject {
     func saveSettings() {
         saveToUserDefaults()
         
-        // If catalog service is connected, sync preset amounts
+        // Sync to backend (ADD THIS LINE)
+        syncSettingsToBackend()
+        
+        // Existing catalog sync
         if let catalogService = catalogService {
             syncPresetAmountsWithCatalog(using: catalogService)
         }
         
-        // In a real app, you might want to sync with a server here
         NotificationCenter.default.post(name: Notification.Name("KioskSettingsUpdated"), object: nil)
     }
     
@@ -528,6 +530,93 @@ class KioskStore: ObservableObject {
                 return false
             }
             return amount1 < amount2
+        }
+    }
+    
+
+    func syncSettingsToBackend() {
+        print("🔄 Syncing settings to backend...")
+        print("📊 Organization ID: \(SquareConfig.organizationId)")
+        print("💰 Processing Fee Enabled: \(processingFeeEnabled)")
+        print("💰 Processing Fee Percentage: \(processingFeePercentage)")
+        print("💰 Processing Fee Fixed Cents: \(processingFeeFixedCents)")
+        
+        guard let url = URL(string: "\(SquareConfig.backendBaseURL)/api/hooks-preset-amounts-changed") else {
+            print("❌ Invalid URL for backend sync")
+            return
+        }
+        
+        let requestBody: [String: Any] = [
+            "organization_id": SquareConfig.organizationId,
+            "preset_amounts": presetDonations.map { $0.amount },
+            "processing_fee_enabled": processingFeeEnabled,
+            "processing_fee_percentage": processingFeePercentage,
+            "processing_fee_fixed_cents": processingFeeFixedCents
+        ]
+        
+        print("📤 Request body: \(requestBody)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+            
+            // Log the actual JSON being sent
+            if let jsonString = String(data: request.httpBody!, encoding: .utf8) {
+                print("📤 JSON being sent: \(jsonString)")
+            }
+            
+            // Use proper response handling instead of fire-and-forget
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                // Handle network error
+                if let error = error {
+                    print("❌ Network error syncing settings: \(error.localizedDescription)")
+                    return
+                }
+                
+                // Check HTTP response
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("📥 Backend sync response status: \(httpResponse.statusCode)")
+                    
+                    if httpResponse.statusCode != 200 {
+                        print("⚠️ Backend sync failed with status: \(httpResponse.statusCode)")
+                    }
+                }
+                
+                // Parse response body
+                if let data = data {
+                    do {
+                        if let jsonResponse = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                            print("✅ Backend sync response: \(jsonResponse)")
+                            
+                            // Check for success
+                            if let success = jsonResponse["success"] as? Bool, success {
+                                print("✅ Settings successfully synced to backend")
+                                
+                                // Update last sync time
+                                DispatchQueue.main.async {
+                                    self.lastSyncTime = Date()
+                                    self.saveToUserDefaults()
+                                }
+                            } else if let error = jsonResponse["error"] as? String {
+                                print("❌ Backend sync error: \(error)")
+                            }
+                        }
+                    } catch {
+                        // If not JSON, log the raw response
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("📥 Backend response (non-JSON): \(responseString)")
+                        }
+                    }
+                }
+            }.resume()
+            
+            print("📤 Sync request sent to backend")
+            
+        } catch {
+            print("❌ Failed to create sync request: \(error)")
         }
     }
     
